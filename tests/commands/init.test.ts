@@ -780,4 +780,187 @@ describe('tnl init', () => {
       'MCP server registration for codex is not automated',
     );
   });
+
+  describe('--local-install', () => {
+    it('writes absolute node paths in .mcp.json (Claude)', () => {
+      runInit({
+        cwd,
+        agent: 'claude',
+        localInstall: true,
+        stdout: () => {},
+        stderr: () => {},
+      });
+      const parsed = JSON.parse(
+        readFileSync(join(cwd, '.mcp.json'), 'utf8'),
+      );
+      expect(parsed.mcpServers.tnl.command).toBe('node');
+      expect(parsed.mcpServers.tnl.args[0]).toMatch(/\/dist\/mcp\/server\.js$/);
+      expect(parsed.mcpServers.tnl.args[0]).not.toContain('npx');
+    });
+
+    it('writes absolute node paths in .gemini/settings.json', () => {
+      runInit({
+        cwd,
+        agent: 'gemini',
+        localInstall: true,
+        stdout: () => {},
+        stderr: () => {},
+      });
+      const parsed = JSON.parse(
+        readFileSync(join(cwd, '.gemini', 'settings.json'), 'utf8'),
+      );
+      expect(parsed.mcpServers.tnl.command).toBe('node');
+      expect(parsed.mcpServers.tnl.args[0]).toMatch(/\/dist\/mcp\/server\.js$/);
+    });
+
+    it('writes node + absolute path in .codex/config.toml', () => {
+      runInit({
+        cwd,
+        agent: 'codex',
+        localInstall: true,
+        stdout: () => {},
+        stderr: () => {},
+      });
+      const content = readFileSync(
+        join(cwd, '.codex', 'config.toml'),
+        'utf8',
+      );
+      expect(content).toContain('command = "node"');
+      expect(content).toMatch(/args = \["[^"]+\/dist\/mcp\/server\.js"\]/);
+      expect(content).not.toContain('npx');
+    });
+
+    it('writes absolute node command in .claude/settings.json hook', () => {
+      runInit({
+        cwd,
+        agent: 'claude',
+        localInstall: true,
+        stdout: () => {},
+        stderr: () => {},
+      });
+      const parsed = JSON.parse(
+        readFileSync(join(cwd, '.claude', 'settings.json'), 'utf8'),
+      );
+      const cmd = parsed.hooks.PreToolUse[0].hooks[0].command;
+      expect(cmd).toMatch(/^node .*\/dist\/index\.js hook pre-tool-use$/);
+      expect(cmd).not.toContain('npx');
+    });
+
+    it('suppresses the CI workflow under --local-install', () => {
+      const cap = capture();
+      runInit({
+        cwd,
+        agent: 'claude',
+        localInstall: true,
+        ...cap.opts,
+      });
+      expect(
+        existsSync(join(cwd, '.github', 'workflows', 'tnl-verify.yml')),
+      ).toBe(false);
+      expect(cap.stdout()).toContain('Skipped (opt-out)');
+      expect(cap.stdout()).toContain('.github/workflows/tnl-verify.yml');
+    });
+
+    it('warns when the resolved pkgRoot dist/ does not exist', () => {
+      const fakePkg = mkdtempSync(join(tmpdir(), 'tnl-init-fakepkg-'));
+      try {
+        writeFileSync(
+          join(fakePkg, 'package.json'),
+          '{"name":"fake"}',
+          'utf8',
+        );
+        // No dist/ inside fakePkg
+        const cap = capture();
+        runInit({
+          cwd,
+          agent: 'claude',
+          localInstall: true,
+          pkgRoot: fakePkg,
+          ...cap.opts,
+        });
+        expect(cap.stdout()).toContain('Warnings');
+        expect(cap.stdout()).toContain('npm run build');
+        expect(cap.stdout()).toContain(join(fakePkg, 'dist'));
+      } finally {
+        rmSync(fakePkg, { recursive: true, force: true });
+      }
+    });
+
+    it('proceeds with absolute paths even when dist/ is absent', () => {
+      const fakePkg = mkdtempSync(join(tmpdir(), 'tnl-init-fakepkg-'));
+      try {
+        writeFileSync(
+          join(fakePkg, 'package.json'),
+          '{"name":"fake"}',
+          'utf8',
+        );
+        runInit({
+          cwd,
+          agent: 'claude',
+          localInstall: true,
+          pkgRoot: fakePkg,
+          stdout: () => {},
+          stderr: () => {},
+        });
+        const parsed = JSON.parse(
+          readFileSync(join(cwd, '.mcp.json'), 'utf8'),
+        );
+        expect(parsed.mcpServers.tnl.args[0]).toBe(
+          join(fakePkg, 'dist', 'mcp', 'server.js'),
+        );
+      } finally {
+        rmSync(fakePkg, { recursive: true, force: true });
+      }
+    });
+
+    it('idempotent: second run with local-install form skips via hook sentinel', () => {
+      runInit({
+        cwd,
+        agent: 'claude',
+        localInstall: true,
+        stdout: () => {},
+        stderr: () => {},
+      });
+      const before = readFileSync(
+        join(cwd, '.claude', 'settings.json'),
+        'utf8',
+      );
+      const cap = capture();
+      runInit({
+        cwd,
+        agent: 'claude',
+        localInstall: true,
+        ...cap.opts,
+      });
+      const after = readFileSync(
+        join(cwd, '.claude', 'settings.json'),
+        'utf8',
+      );
+      expect(after).toBe(before);
+      expect(cap.stdout()).toContain('Skipped');
+    });
+
+    it('idempotent: default-form existing hook is recognized by local-install sentinel too', () => {
+      // First run without --local-install
+      runInit({ cwd, agent: 'claude', stdout: () => {}, stderr: () => {} });
+      const before = readFileSync(
+        join(cwd, '.claude', 'settings.json'),
+        'utf8',
+      );
+      // Second run with --local-install — sentinel matches, skip
+      const cap = capture();
+      runInit({
+        cwd,
+        agent: 'claude',
+        localInstall: true,
+        ...cap.opts,
+      });
+      const after = readFileSync(
+        join(cwd, '.claude', 'settings.json'),
+        'utf8',
+      );
+      expect(after).toBe(before);
+      expect(cap.stdout()).toContain('Skipped');
+    });
+  });
 });

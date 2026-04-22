@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defaultRegistry, type Command, type CommandArgs } from '../cli.js';
 
 type AgentName = 'claude' | 'codex' | 'gemini';
@@ -121,6 +122,44 @@ export interface InitOptions {
   noMcp?: boolean;
   noHook?: boolean;
   noSkill?: boolean;
+  localInstall?: boolean;
+  /** Test injection: override the resolved package root when `localInstall` is set. */
+  pkgRoot?: string;
+}
+
+interface InstallTemplates {
+  hookCommand: string;
+  mcpServerEntry: { command: string; args: string[] };
+  codexBlock: string;
+}
+
+const DEFAULT_TEMPLATES: InstallTemplates = {
+  hookCommand: 'npx @tnl/cli hook pre-tool-use',
+  mcpServerEntry: { command: 'npx', args: ['-y', '@tnl/mcp-server'] },
+  codexBlock:
+    '[mcp_servers.tnl]\ncommand = "npx"\nargs = ["-y", "@tnl/mcp-server"]\n',
+};
+
+function findPackageRoot(): string {
+  const here = dirname(fileURLToPath(import.meta.url));
+  let dir = here;
+  for (let depth = 0; depth < 6; depth++) {
+    if (existsSync(join(dir, 'package.json'))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return here;
+}
+
+function buildLocalTemplates(pkgRoot: string): InstallTemplates {
+  const distIndex = join(pkgRoot, 'dist', 'index.js');
+  const distMcp = join(pkgRoot, 'dist', 'mcp', 'server.js');
+  return {
+    hookCommand: `node ${distIndex} hook pre-tool-use`,
+    mcpServerEntry: { command: 'node', args: [distMcp] },
+    codexBlock: `[mcp_servers.tnl]\ncommand = "node"\nargs = ["${distMcp}"]\n`,
+  };
 }
 
 export function runInit(options: InitOptions = {}): number {
@@ -143,11 +182,23 @@ export function runInit(options: InitOptions = {}): number {
   const noMcp = options.minimal || options.noMcp || false;
   const noHook = options.minimal || options.noHook || false;
   const noSkill = options.minimal || options.noSkill || false;
+  const localInstall = options.localInstall || false;
 
   const created: string[] = [];
   const skipped: string[] = [];
   const suppressed: string[] = [];
   const warnings: string[] = [];
+
+  let templates: InstallTemplates = DEFAULT_TEMPLATES;
+  if (localInstall) {
+    const pkgRoot = options.pkgRoot ?? findPackageRoot();
+    templates = buildLocalTemplates(pkgRoot);
+    if (!existsSync(join(pkgRoot, 'dist'))) {
+      warnings.push(
+        `--local-install: ${join(pkgRoot, 'dist')} does not exist. Run \`npm run build\` in the TNL repo before using the generated configs.`,
+      );
+    }
+  }
 
   const tnlDir = join(cwd, 'tnl');
   if (existsSync(tnlDir)) {
@@ -211,13 +262,13 @@ export function runInit(options: InitOptions = {}): number {
       if (noHook) {
         suppressed.push('.claude/settings.json');
       } else {
-        installClaudeHook(cwd, created, skipped, warnings, err);
+        installClaudeHook(cwd, created, skipped, warnings, err, templates);
       }
 
       if (noMcp) {
         suppressed.push('.mcp.json');
       } else {
-        installMcpConfig(cwd, created, skipped, warnings, err);
+        installMcpConfig(cwd, created, skipped, warnings, err, templates);
       }
     }
 
@@ -225,7 +276,7 @@ export function runInit(options: InitOptions = {}): number {
       if (noMcp) {
         suppressed.push('.gemini/settings.json');
       } else {
-        installGeminiMcpConfig(cwd, created, skipped, warnings, err);
+        installGeminiMcpConfig(cwd, created, skipped, warnings, err, templates);
       }
     }
 
@@ -233,12 +284,12 @@ export function runInit(options: InitOptions = {}): number {
       if (noMcp) {
         suppressed.push('.codex/config.toml');
       } else {
-        installCodexMcpConfig(cwd, created, skipped, warnings);
+        installCodexMcpConfig(cwd, created, skipped, warnings, templates);
       }
     }
   }
 
-  if (noCi) {
+  if (noCi || localInstall) {
     suppressed.push('.github/workflows/tnl-verify.yml');
   } else {
     installCiWorkflow(cwd, created, skipped);
@@ -268,7 +319,7 @@ export function runInit(options: InitOptions = {}): number {
   return 0;
 }
 
-const HOOK_COMMAND = 'npx @tnl/cli hook pre-tool-use';
+const HOOK_SENTINEL = 'hook pre-tool-use';
 const HOOK_MATCHER = 'Edit|Write|MultiEdit';
 
 const CI_WORKFLOW_TEMPLATE = `name: TNL Verify
@@ -303,11 +354,6 @@ function installCiWorkflow(
   created.push('.github/workflows/tnl-verify.yml');
 }
 
-const MCP_SERVER_ENTRY = {
-  command: 'npx',
-  args: ['-y', '@tnl/mcp-server'],
-};
-
 interface McpConfigShape {
   mcpServers?: Record<string, unknown>;
   [k: string]: unknown;
@@ -319,12 +365,13 @@ function installMcpConfig(
   skipped: string[],
   warnings: string[],
   err: (s: string) => void,
+  templates: InstallTemplates,
 ): void {
   const mcpPath = join(cwd, '.mcp.json');
 
   if (!existsSync(mcpPath)) {
     const initial: McpConfigShape = {
-      mcpServers: { tnl: MCP_SERVER_ENTRY },
+      mcpServers: { tnl: templates.mcpServerEntry },
     };
     writeFileSync(mcpPath, JSON.stringify(initial, null, 2) + '\n', 'utf8');
     created.push('.mcp.json');
@@ -349,15 +396,13 @@ function installMcpConfig(
     return;
   }
 
-  mcpServers.tnl = MCP_SERVER_ENTRY;
+  mcpServers.tnl = templates.mcpServerEntry;
   parsed.mcpServers = mcpServers;
 
   writeFileSync(mcpPath, JSON.stringify(parsed, null, 2) + '\n', 'utf8');
   created.push('.mcp.json (tnl added)');
 }
 
-const CODEX_TNL_BLOCK =
-  '[mcp_servers.tnl]\ncommand = "npx"\nargs = ["-y", "@tnl/mcp-server"]\n';
 const CODEX_SENTINEL = '[mcp_servers.tnl]';
 
 function installCodexMcpConfig(
@@ -365,6 +410,7 @@ function installCodexMcpConfig(
   created: string[],
   skipped: string[],
   warnings: string[],
+  templates: InstallTemplates,
 ): void {
   const codexDir = join(cwd, '.codex');
   const configPath = join(codexDir, 'config.toml');
@@ -372,7 +418,7 @@ function installCodexMcpConfig(
   let wroteSomething = false;
   if (!existsSync(configPath)) {
     mkdirSync(codexDir, { recursive: true });
-    writeFileSync(configPath, CODEX_TNL_BLOCK, 'utf8');
+    writeFileSync(configPath, templates.codexBlock, 'utf8');
     created.push('.codex/config.toml');
     wroteSomething = true;
   } else {
@@ -381,7 +427,11 @@ function installCodexMcpConfig(
       skipped.push('.codex/config.toml');
     } else {
       const separator = content.endsWith('\n') ? '\n' : '\n\n';
-      writeFileSync(configPath, content + separator + CODEX_TNL_BLOCK, 'utf8');
+      writeFileSync(
+        configPath,
+        content + separator + templates.codexBlock,
+        'utf8',
+      );
       created.push('.codex/config.toml (tnl added)');
       wroteSomething = true;
     }
@@ -400,6 +450,7 @@ function installGeminiMcpConfig(
   skipped: string[],
   warnings: string[],
   err: (s: string) => void,
+  templates: InstallTemplates,
 ): void {
   const geminiDir = join(cwd, '.gemini');
   const settingsPath = join(geminiDir, 'settings.json');
@@ -407,7 +458,7 @@ function installGeminiMcpConfig(
   if (!existsSync(settingsPath)) {
     mkdirSync(geminiDir, { recursive: true });
     const initial: McpConfigShape = {
-      mcpServers: { tnl: MCP_SERVER_ENTRY },
+      mcpServers: { tnl: templates.mcpServerEntry },
     };
     writeFileSync(
       settingsPath,
@@ -436,7 +487,7 @@ function installGeminiMcpConfig(
     return;
   }
 
-  mcpServers.tnl = MCP_SERVER_ENTRY;
+  mcpServers.tnl = templates.mcpServerEntry;
   parsed.mcpServers = mcpServers;
 
   writeFileSync(
@@ -464,11 +515,12 @@ function installClaudeHook(
   skipped: string[],
   warnings: string[],
   err: (s: string) => void,
+  templates: InstallTemplates,
 ): void {
   const settingsPath = join(cwd, '.claude', 'settings.json');
   const hookEntry = {
     matcher: HOOK_MATCHER,
-    hooks: [{ type: 'command', command: HOOK_COMMAND }],
+    hooks: [{ type: 'command', command: templates.hookCommand }],
   };
 
   if (!existsSync(settingsPath)) {
@@ -486,7 +538,7 @@ function installClaudeHook(
   }
 
   const content = readFileSync(settingsPath, 'utf8');
-  if (content.includes(HOOK_COMMAND)) {
+  if (content.includes(HOOK_SENTINEL)) {
     skipped.push('.claude/settings.json');
     return;
   }
@@ -540,6 +592,7 @@ const initCommand: Command = {
       noMcp: flags.has('--no-mcp'),
       noHook: flags.has('--no-hook'),
       noSkill: flags.has('--no-skill'),
+      localInstall: flags.has('--local-install'),
     });
   },
 };
