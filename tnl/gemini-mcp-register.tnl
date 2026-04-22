@@ -1,0 +1,61 @@
+id: gemini-mcp-register
+title: MCP server registration in Gemini CLI project config
+scope: feature
+owners: [@jana]
+paths: [src/commands/init.ts]
+surfaces: [tnl init]
+dependencies: [cli-init, mcp-skeleton, mcp-auto-register]
+
+intent:
+  When `tnl init` targets Gemini CLI, it writes or merges the
+  project-scoped `.gemini/settings.json` at the repo root so the TNL
+  MCP server appears in Gemini CLI's tool list automatically. Gemini
+  supports project-scoped MCP config the same way Claude Code does —
+  no user-scoped writes needed. Logic parallels A7's
+  `mcp-auto-register` for Claude, changing only the file path and
+  the directory-creation step.
+
+behaviors:
+  - When `tnl init` determines Gemini is a target agent, init MUST write or merge `<cwd>/.gemini/settings.json` to register the `tnl` MCP server with `{ command: "npx", args: ["-y", "@tnl/mcp-server"] }`.
+  - When `.gemini/settings.json` does not exist, init MUST create it with exactly `{ "mcpServers": { "tnl": { "command": "npx", "args": ["-y", "@tnl/mcp-server"] } } }`. The `.gemini/` directory MUST be created if absent.
+  - When `.gemini/settings.json` exists and is valid JSON, init MUST preserve every pre-existing top-level field and merge the `tnl` entry into `mcpServers`. Other servers already registered under `mcpServers` MUST be preserved verbatim.
+  - The merge MUST be idempotent: if `mcpServers.tnl` is already present in the parsed JSON (any value), init MUST leave the file untouched and report the skip. Shape mismatch (user edited the command) MUST still be treated as "present" — init does NOT overwrite user edits.
+  - If `.gemini/settings.json` exists but is not valid JSON, init MUST emit a warning (stderr AND summary warnings list) naming the file and MUST skip the merge; the existing file MUST NOT be overwritten.
+  - The summary MUST include `.gemini/settings.json` in `Created` or `Skipped (already present)` when Gemini is a target.
+  - The register step MUST NOT run for non-Gemini targets alone — when only Claude or Codex is targeted, `.gemini/settings.json` MUST NOT be created or modified.
+  - This installation step MAY be suppressed by `tnl init`'s `--no-mcp` or `--minimal` opt-out flag (defined in `cli-init.tnl`). When suppressed, the step is skipped and the summary reports `.gemini/settings.json` under `Skipped (opt-out)` rather than `Created` or `Skipped (already present)`.
+  - The existing codex/gemini manual-registration warning from A7's `mcp-auto-register.tnl` MUST be amended: the warning MUST NOT fire when Gemini is the only non-Claude target. It MUST continue to fire when Codex is a target, and its text MUST be updated to mention only `codex` (not `codex/gemini`) and to point at the project-scoped `.codex/config.toml` path (aligned with ground-truth Codex docs; the old "user-scoped" phrasing in the A7 warning was based on an incorrect assumption).
+  - Tests MUST cover: `.gemini/settings.json` written with expected shape when `--agent gemini` + absent file; `.gemini/` directory auto-created; existing top-level fields preserved on merge; existing `mcpServers` entries preserved; idempotent — second run with `mcpServers.tnl` present → skip; malformed JSON → stderr + summary warning, file unchanged; `.gemini/settings.json` NOT written for `--agent claude` or `--agent codex` alone; `--no-mcp` suppresses; `--minimal` suppresses; no manual-registration warning fires when `--agent gemini` alone; the manual-registration warning does fire when `--agent codex` is targeted and its text mentions only `codex` (not gemini).
+
+non-goals:
+  - User-scoped `~/.gemini/settings.json` writes — project-scoped is sufficient and respects the adopter's user config.
+  - Codex auto-registration — separate TNL (next B3 feature).
+  - Setting `trust: true` on the tnl server entry — default (`trust: false`) preserves per-tool confirmation prompts; adopters flip it themselves if desired.
+  - Other Gemini settings (model, timeout, allowed/excluded tools) — init writes only the MCP registration block.
+  - Removing MCP entries (`tnl uninstall`) — deferred.
+  - Sharing a generic `installJsonMcpConfig` helper between Claude and Gemini — two callers is below the abstraction threshold; factor when a third JSON-MCP target lands.
+
+rationale:
+  Why project-scoped `.gemini/settings.json` rather than user-scoped:
+  same reasoning as `mcp-auto-register.tnl` for Claude. Project-scoped
+  files commit to git, are reviewable, and don't mutate the user's
+  personal config without consent. Gemini CLI explicitly supports
+  project-scoped settings — no trust gate, unlike Codex.
+
+  Why shape identical to Claude's `.mcp.json`: Gemini CLI's
+  `mcpServers` JSON structure is the same as Claude Code's — same
+  keys, same shape. The integration pattern carries over directly;
+  only the file path differs.
+
+  Why `trust: false` (default): trusting a server bypasses confirmation
+  dialogs. For a fresh install the adopter should see per-tool
+  prompts the first time and decide. Flipping to `trust: true` is
+  an explicit user choice, not a default we set.
+
+  Why amend the A7 codex/gemini warning rather than leave it alone:
+  after this TNL lands, the warning's claim "for codex/gemini" is
+  false (gemini is automated). Also the A7 warning pointed at "user-
+  scoped MCP config" — that was based on a wrong assumption; both
+  agents support project-scoped files. The amended text corrects
+  both errors and narrows the warning to codex only, until the
+  next TNL covers codex and the warning is removed entirely.

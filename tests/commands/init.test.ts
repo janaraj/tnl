@@ -401,30 +401,19 @@ describe('tnl init', () => {
     expect(existsSync(join(cwd, '.mcp.json'))).toBe(false);
   });
 
-  it('emits a manual-MCP-registration warning for codex/gemini targets', () => {
-    const cap = capture();
-    runInit({ cwd, agent: 'codex', ...cap.opts });
-    expect(cap.stdout()).toContain('MCP server registration');
-    expect(cap.stdout()).toContain('codex/gemini');
-
-    const cwd2 = mkdtempSync(join(tmpdir(), 'tnl-init-gemini-'));
-    try {
-      const cap2 = capture();
-      runInit({ cwd: cwd2, agent: 'gemini', ...cap2.opts });
-      expect(cap2.stdout()).toContain('MCP server registration');
-    } finally {
-      rmSync(cwd2, { recursive: true, force: true });
-    }
-  });
-
-  it('Claude + Codex mixed target writes .mcp.json AND emits the codex warning', () => {
+  it('Claude + Codex mixed target writes both .mcp.json and .codex/config.toml', () => {
     mkdirSync(join(cwd, '.claude'));
     writeFileSync(join(cwd, 'AGENTS.md'), '# agents\n', 'utf8');
     const cap = capture();
     runInit({ cwd, ...cap.opts });
     expect(existsSync(join(cwd, '.mcp.json'))).toBe(true);
-    expect(cap.stdout()).toContain('MCP server registration');
-    expect(cap.stdout()).toContain('codex/gemini');
+    expect(existsSync(join(cwd, '.codex', 'config.toml'))).toBe(true);
+    // A7's "not automated" warning no longer fires — Codex is automated now
+    expect(cap.stdout()).not.toContain(
+      'MCP server registration for codex is not automated',
+    );
+    // Codex trust-flag hint fires for the Codex write
+    expect(cap.stdout()).toContain('Codex project trust');
   });
 
   it('writes .github/workflows/tnl-verify.yml with expected content on an empty cwd', () => {
@@ -584,5 +573,211 @@ describe('tnl init', () => {
     expect(existsSync(join(cwd, 'CLAUDE.md'))).toBe(true);
     const claudeMd = readFileSync(join(cwd, 'CLAUDE.md'), 'utf8');
     expect(claudeMd).toContain('<!-- tnl:workflow-stanza -->');
+  });
+
+  it('writes .gemini/settings.json with the tnl server entry when --agent gemini on empty cwd', () => {
+    runInit({ cwd, agent: 'gemini', stdout: () => {}, stderr: () => {} });
+    const path = join(cwd, '.gemini', 'settings.json');
+    expect(existsSync(path)).toBe(true);
+    const parsed = JSON.parse(readFileSync(path, 'utf8'));
+    expect(parsed.mcpServers.tnl).toEqual({
+      command: 'npx',
+      args: ['-y', '@tnl/mcp-server'],
+    });
+  });
+
+  it('auto-creates .gemini/ directory when installing the Gemini MCP config', () => {
+    expect(existsSync(join(cwd, '.gemini'))).toBe(false);
+    runInit({ cwd, agent: 'gemini', stdout: () => {}, stderr: () => {} });
+    expect(existsSync(join(cwd, '.gemini'))).toBe(true);
+  });
+
+  it('preserves existing top-level fields and other mcpServers entries when merging .gemini/settings.json', () => {
+    mkdirSync(join(cwd, '.gemini'));
+    writeFileSync(
+      join(cwd, '.gemini', 'settings.json'),
+      JSON.stringify({
+        model: 'gemini-pro',
+        mcpServers: {
+          other: { command: 'node', args: ['foo.js'] },
+        },
+      }),
+      'utf8',
+    );
+    runInit({ cwd, agent: 'gemini', stdout: () => {}, stderr: () => {} });
+    const parsed = JSON.parse(
+      readFileSync(join(cwd, '.gemini', 'settings.json'), 'utf8'),
+    );
+    expect(parsed.model).toBe('gemini-pro');
+    expect(parsed.mcpServers.other).toEqual({
+      command: 'node',
+      args: ['foo.js'],
+    });
+    expect(parsed.mcpServers.tnl).toBeDefined();
+  });
+
+  it('is idempotent when mcpServers.tnl already exists in .gemini/settings.json', () => {
+    mkdirSync(join(cwd, '.gemini'));
+    writeFileSync(
+      join(cwd, '.gemini', 'settings.json'),
+      JSON.stringify({
+        mcpServers: {
+          tnl: { command: 'custom-command', args: ['--user-override'] },
+        },
+      }),
+      'utf8',
+    );
+    const before = readFileSync(
+      join(cwd, '.gemini', 'settings.json'),
+      'utf8',
+    );
+    const cap = capture();
+    runInit({ cwd, agent: 'gemini', ...cap.opts });
+    const after = readFileSync(
+      join(cwd, '.gemini', 'settings.json'),
+      'utf8',
+    );
+    expect(after).toBe(before);
+    expect(cap.stdout()).toContain('.gemini/settings.json');
+  });
+
+  it('warns (stderr + summary) and skips when .gemini/settings.json is malformed JSON', () => {
+    mkdirSync(join(cwd, '.gemini'));
+    writeFileSync(
+      join(cwd, '.gemini', 'settings.json'),
+      'not valid json',
+      'utf8',
+    );
+    const cap = capture();
+    runInit({ cwd, agent: 'gemini', ...cap.opts });
+    expect(
+      readFileSync(join(cwd, '.gemini', 'settings.json'), 'utf8'),
+    ).toBe('not valid json');
+    expect(cap.stdout()).toContain('Warnings');
+    expect(cap.stdout()).toContain('.gemini/settings.json');
+    expect(cap.stderr()).toContain('.gemini/settings.json');
+  });
+
+  it('does NOT create .gemini/settings.json for --agent claude alone', () => {
+    runInit({ cwd, agent: 'claude', stdout: () => {}, stderr: () => {} });
+    expect(existsSync(join(cwd, '.gemini', 'settings.json'))).toBe(false);
+  });
+
+  it('does NOT create .gemini/settings.json for --agent codex alone', () => {
+    runInit({ cwd, agent: 'codex', stdout: () => {}, stderr: () => {} });
+    expect(existsSync(join(cwd, '.gemini', 'settings.json'))).toBe(false);
+  });
+
+  it('--no-mcp suppresses .gemini/settings.json for gemini targets', () => {
+    const cap = capture();
+    runInit({ cwd, agent: 'gemini', noMcp: true, ...cap.opts });
+    expect(existsSync(join(cwd, '.gemini', 'settings.json'))).toBe(false);
+    expect(cap.stdout()).toContain('Skipped (opt-out)');
+    expect(cap.stdout()).toContain('.gemini/settings.json');
+  });
+
+  it('--minimal suppresses .gemini/settings.json for gemini targets', () => {
+    const cap = capture();
+    runInit({ cwd, agent: 'gemini', minimal: true, ...cap.opts });
+    expect(existsSync(join(cwd, '.gemini', 'settings.json'))).toBe(false);
+    expect(cap.stdout()).toContain('Skipped (opt-out)');
+    expect(cap.stdout()).toContain('.gemini/settings.json');
+  });
+
+  it('no manual-MCP warning fires when --agent gemini alone (now automated)', () => {
+    const cap = capture();
+    runInit({ cwd, agent: 'gemini', ...cap.opts });
+    expect(cap.stdout()).not.toContain('MCP server registration for');
+  });
+
+  it('writes .codex/config.toml with the [mcp_servers.tnl] block when --agent codex on empty cwd', () => {
+    runInit({ cwd, agent: 'codex', stdout: () => {}, stderr: () => {} });
+    const path = join(cwd, '.codex', 'config.toml');
+    expect(existsSync(path)).toBe(true);
+    const content = readFileSync(path, 'utf8');
+    expect(content).toBe(
+      '[mcp_servers.tnl]\ncommand = "npx"\nargs = ["-y", "@tnl/mcp-server"]\n',
+    );
+  });
+
+  it('auto-creates .codex/ directory when installing the Codex MCP config', () => {
+    expect(existsSync(join(cwd, '.codex'))).toBe(false);
+    runInit({ cwd, agent: 'codex', stdout: () => {}, stderr: () => {} });
+    expect(existsSync(join(cwd, '.codex'))).toBe(true);
+  });
+
+  it('preserves unrelated TOML sections when appending the tnl block', () => {
+    mkdirSync(join(cwd, '.codex'));
+    const existing = '# user config\n[profile]\nmodel = "gpt-5"\n';
+    writeFileSync(join(cwd, '.codex', 'config.toml'), existing, 'utf8');
+    runInit({ cwd, agent: 'codex', stdout: () => {}, stderr: () => {} });
+    const content = readFileSync(
+      join(cwd, '.codex', 'config.toml'),
+      'utf8',
+    );
+    expect(content.startsWith(existing)).toBe(true);
+    expect(content).toContain('[mcp_servers.tnl]');
+  });
+
+  it('is idempotent: second run leaves .codex/config.toml byte-identical', () => {
+    runInit({ cwd, agent: 'codex', stdout: () => {}, stderr: () => {} });
+    const before = readFileSync(
+      join(cwd, '.codex', 'config.toml'),
+      'utf8',
+    );
+    const cap = capture();
+    runInit({ cwd, agent: 'codex', ...cap.opts });
+    const after = readFileSync(
+      join(cwd, '.codex', 'config.toml'),
+      'utf8',
+    );
+    expect(after).toBe(before);
+    expect(cap.stdout()).toContain('.codex/config.toml');
+  });
+
+  it('does NOT create .codex/config.toml for --agent claude alone', () => {
+    runInit({ cwd, agent: 'claude', stdout: () => {}, stderr: () => {} });
+    expect(existsSync(join(cwd, '.codex', 'config.toml'))).toBe(false);
+  });
+
+  it('does NOT create .codex/config.toml for --agent gemini alone', () => {
+    runInit({ cwd, agent: 'gemini', stdout: () => {}, stderr: () => {} });
+    expect(existsSync(join(cwd, '.codex', 'config.toml'))).toBe(false);
+  });
+
+  it('--no-mcp suppresses .codex/config.toml for codex targets', () => {
+    const cap = capture();
+    runInit({ cwd, agent: 'codex', noMcp: true, ...cap.opts });
+    expect(existsSync(join(cwd, '.codex', 'config.toml'))).toBe(false);
+    expect(cap.stdout()).toContain('Skipped (opt-out)');
+    expect(cap.stdout()).toContain('.codex/config.toml');
+  });
+
+  it('--minimal suppresses .codex/config.toml for codex targets', () => {
+    const cap = capture();
+    runInit({ cwd, agent: 'codex', minimal: true, ...cap.opts });
+    expect(existsSync(join(cwd, '.codex', 'config.toml'))).toBe(false);
+  });
+
+  it('trust-flag hint fires on first Codex write and includes the cwd absolute path', () => {
+    const cap = capture();
+    runInit({ cwd, agent: 'codex', ...cap.opts });
+    expect(cap.stdout()).toContain('Codex project trust');
+    expect(cap.stdout()).toContain(`projects."${cwd}".trust_level = "trusted"`);
+  });
+
+  it('trust-flag hint does NOT fire on a skip-as-already-present run', () => {
+    runInit({ cwd, agent: 'codex', stdout: () => {}, stderr: () => {} });
+    const cap = capture();
+    runInit({ cwd, agent: 'codex', ...cap.opts });
+    expect(cap.stdout()).not.toContain('Codex project trust');
+  });
+
+  it('A7 "MCP server registration for codex is not automated" warning no longer fires', () => {
+    const cap = capture();
+    runInit({ cwd, agent: 'codex', ...cap.opts });
+    expect(cap.stdout()).not.toContain(
+      'MCP server registration for codex is not automated',
+    );
   });
 });

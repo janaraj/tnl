@@ -1,0 +1,60 @@
+id: codex-mcp-register
+title: MCP server registration in Codex project config
+scope: feature
+owners: [@jana]
+paths: [src/commands/init.ts]
+surfaces: [tnl init]
+dependencies: [cli-init, mcp-skeleton, gemini-mcp-register]
+
+intent:
+  When `tnl init` targets Codex, it writes or merges the
+  project-scoped `.codex/config.toml` at the repo root so the TNL
+  MCP server is available when Codex loads the project's config.
+  Codex requires the user to mark the project as trusted in their
+  user-scoped `~/.codex/config.toml` before the project file is
+  loaded — this is a one-line manual step we print as a summary
+  hint. The project write itself is automated.
+
+behaviors:
+  - When `tnl init` determines Codex is a target agent, init MUST write or merge `<cwd>/.codex/config.toml` to register a `tnl` MCP server as `[mcp_servers.tnl]` with `command = "npx"` and `args = ["-y", "@tnl/mcp-server"]`.
+  - When `.codex/config.toml` does not exist, init MUST create it with a single `[mcp_servers.tnl]` block in canonical TOML shape (the table header, the `command` line, and the `args` line, each terminated by a newline). The `.codex/` directory MUST be created if absent.
+  - When `.codex/config.toml` exists, init MUST use a literal-substring idempotency check: if the raw text already contains the exact string `[mcp_servers.tnl]`, init MUST leave the file untouched and report the skip. Otherwise init MUST append a blank line and the `[mcp_servers.tnl]` block to the end of the existing file, preserving everything above it verbatim.
+  - The summary MUST include `.codex/config.toml` in `Created` or `Skipped (already present)` when Codex is a target.
+  - The summary MUST include a one-line trust-flag hint whenever Codex is a target AND `.codex/config.toml` was just created or appended to (i.e., not when it was skipped as already-present). The hint tells the user to add `projects."<absolute-cwd>".trust_level = "trusted"` to their `~/.codex/config.toml` so Codex will load the project file. The hint MUST include the exact cwd path passed to init so the user can paste it verbatim.
+  - The register step MUST NOT run for non-Codex targets alone — when only Claude or Gemini is targeted, `.codex/config.toml` MUST NOT be created or modified.
+  - This installation step MAY be suppressed by `tnl init`'s `--no-mcp` or `--minimal` opt-out flag. When suppressed, the step is skipped and the summary reports `.codex/config.toml` under `Skipped (opt-out)`.
+  - The A7 codex manual-registration warning (amended in `gemini-mcp-register.tnl` to target codex only) MUST be removed entirely by this TNL. Codex is now automated; the only summary line about codex is the trust-flag hint, and it fires only when a write actually happened.
+  - Tests MUST cover: `.codex/config.toml` written with exactly the three-line TOML block when `--agent codex` + absent file; `.codex/` directory auto-created; existing `.codex/config.toml` content (unrelated TOML sections) preserved verbatim, with the TNL block appended; idempotent — second run leaves the file byte-identical; `.codex/config.toml` NOT written for `--agent claude` or `--agent gemini` alone; `--no-mcp` / `--minimal` suppress; trust-flag hint fires on first Codex write and contains the absolute cwd string; hint does NOT fire on a skip-as-already-present run; the A7 "MCP server registration for codex is not automated" warning no longer fires.
+
+non-goals:
+  - TOML parsing — append-or-skip via substring match is sufficient. A full TOML reader/writer would add a runtime dep for one configuration surface.
+  - Writing `projects.<path>.trust_level` to `~/.codex/config.toml` automatically — that is a user-scoped mutation and requires adopter consent; we print the hint instead.
+  - Merging into an existing `[mcp_servers]` table — we only add our own `[mcp_servers.tnl]` subtable. Other subtables coexist naturally in TOML.
+  - Rewriting existing `[mcp_servers.tnl]` entries to match the template — respects user customizations (same posture as Gemini and Claude).
+  - Validating that the existing `.codex/config.toml` is well-formed TOML — substring idempotency doesn't require parsing. If the file is broken, the adopter fixes it; we don't touch it beyond the append.
+  - Codex IDE-extension config — shares the same file, so writing it is sufficient for both CLI and IDE surfaces.
+
+rationale:
+  Why append-substring idempotency rather than TOML parsing: TOML is
+  more complex than JSON to parse correctly (multiple value types,
+  inline tables, arrays of tables). We only need two operations —
+  "does this named subtable exist?" and "add a subtable if not."
+  Substring match on the literal `[mcp_servers.tnl]` header is
+  accurate for both and saves a runtime dep.
+
+  Why print the trust-flag hint rather than write `~/.codex/config.toml`:
+  same consent posture as the rest of init. Writing a project file is
+  safe (version-controlled, reviewable). Mutating the user's personal
+  config is not, without explicit opt-in. The hint is a one-liner the
+  adopter pastes.
+
+  Why include the literal cwd in the hint: Codex's trust-level key is
+  keyed by the project's absolute path. A relative hint would force
+  the adopter to resolve the path themselves. The cwd passed to init
+  is usually the absolute path (process.cwd() returns absolute); for
+  the rare test case where a relative cwd is injected, the hint
+  surfaces whatever was given — the adopter fixes it if ambiguous.
+
+  Why the A7 codex warning is removed, not further amended: after this
+  TNL, codex is automated. The warning existed to compensate for
+  missing automation; automation is now present.

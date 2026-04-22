@@ -95,7 +95,22 @@ A7 final outcome:
 
 ---
 
-## Path A complete. Path B begins at B1.
+## Path A complete. Path B in progress.
+
+**B3 — completed.** Path B scope was re-sequenced: B3 (Codex + Gemini basic adapters) is landing before B1 (formal evaluation) because the adapters strengthen the eval's claim ("TNL helps across agents, not just Claude Code") and directly close the A7 audit's §7.4 LOW-MEDIUM finding. Two feature TNLs landed:
+
+1. [`gemini-mcp-register`](../tnl/gemini-mcp-register.tnl) — writes/merges `.gemini/settings.json` (project-scoped) with `{mcpServers: {tnl: {...}}}`. Same JSON shape as Claude's `.mcp.json`; same idempotency model (key-existence check). Amended the A7 codex/gemini manual-registration warning to fire only for Codex (temporary, removed in the next TNL).
+2. [`codex-mcp-register`](../tnl/codex-mcp-register.tnl) — writes/merges `.codex/config.toml` (project-scoped) with a `[mcp_servers.tnl]` block. TOML via substring-match append-or-skip (no TOML parser dep). Emits a one-line summary hint telling the user to add `projects."<cwd>".trust_level = "trusted"` to `~/.codex/config.toml` so Codex loads the project file — user-scoped mutation left to the adopter. Removed the A7 warning entirely (Codex is now automated).
+
+B3 notes:
+- **Ground-truth docs, not my guesses.** Before designing, I WebFetch'd the Codex config reference and the Gemini CLI MCP docs to confirm file locations, formats, and trust/consent semantics. The design was revised significantly from my earlier sketch once the docs showed both agents support project-scoped config (I had assumed user-scoped only).
+- **Design posture carries over from A7:** project-scoped writes are safe (version-controlled, reviewable); user-scoped writes need adopter consent. All three agents now handled consistently.
+- **One runtime dep still.** Resisted the temptation to pull in a TOML parser for Codex — substring-match idempotency is sufficient for "does subtable exist?" + "append if not."
+- `tnl init` with all three agents detected now produces a single deterministic multi-file scaffold in one command. Running it and diffing across runs shows zero churn (timestamp-stable sidecars + idempotent merges).
+
+**Running total:** 22 feature TNLs + `workflow.tnl` = 23 total, 364 tests passing, 1 runtime dep.
+
+**Next: B1 — Formal evaluation on a second repo.**
 
 ---
 

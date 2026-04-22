@@ -221,10 +221,20 @@ export function runInit(options: InitOptions = {}): number {
       }
     }
 
-    if (targets.some((t) => t === 'codex' || t === 'gemini')) {
-      warnings.push(
-        'MCP server registration for codex/gemini is not automated. Add `{"mcpServers": {"tnl": {"command": "npx", "args": ["-y", "@tnl/mcp-server"]}}}` to your user-scoped MCP config manually.',
-      );
+    if (targets.includes('gemini')) {
+      if (noMcp) {
+        suppressed.push('.gemini/settings.json');
+      } else {
+        installGeminiMcpConfig(cwd, created, skipped, warnings, err);
+      }
+    }
+
+    if (targets.includes('codex')) {
+      if (noMcp) {
+        suppressed.push('.codex/config.toml');
+      } else {
+        installCodexMcpConfig(cwd, created, skipped, warnings);
+      }
     }
   }
 
@@ -344,6 +354,97 @@ function installMcpConfig(
 
   writeFileSync(mcpPath, JSON.stringify(parsed, null, 2) + '\n', 'utf8');
   created.push('.mcp.json (tnl added)');
+}
+
+const CODEX_TNL_BLOCK =
+  '[mcp_servers.tnl]\ncommand = "npx"\nargs = ["-y", "@tnl/mcp-server"]\n';
+const CODEX_SENTINEL = '[mcp_servers.tnl]';
+
+function installCodexMcpConfig(
+  cwd: string,
+  created: string[],
+  skipped: string[],
+  warnings: string[],
+): void {
+  const codexDir = join(cwd, '.codex');
+  const configPath = join(codexDir, 'config.toml');
+
+  let wroteSomething = false;
+  if (!existsSync(configPath)) {
+    mkdirSync(codexDir, { recursive: true });
+    writeFileSync(configPath, CODEX_TNL_BLOCK, 'utf8');
+    created.push('.codex/config.toml');
+    wroteSomething = true;
+  } else {
+    const content = readFileSync(configPath, 'utf8');
+    if (content.includes(CODEX_SENTINEL)) {
+      skipped.push('.codex/config.toml');
+    } else {
+      const separator = content.endsWith('\n') ? '\n' : '\n\n';
+      writeFileSync(configPath, content + separator + CODEX_TNL_BLOCK, 'utf8');
+      created.push('.codex/config.toml (tnl added)');
+      wroteSomething = true;
+    }
+  }
+
+  if (wroteSomething) {
+    warnings.push(
+      `Codex project trust: add \`projects."${cwd}".trust_level = "trusted"\` to ~/.codex/config.toml so Codex loads .codex/config.toml.`,
+    );
+  }
+}
+
+function installGeminiMcpConfig(
+  cwd: string,
+  created: string[],
+  skipped: string[],
+  warnings: string[],
+  err: (s: string) => void,
+): void {
+  const geminiDir = join(cwd, '.gemini');
+  const settingsPath = join(geminiDir, 'settings.json');
+
+  if (!existsSync(settingsPath)) {
+    mkdirSync(geminiDir, { recursive: true });
+    const initial: McpConfigShape = {
+      mcpServers: { tnl: MCP_SERVER_ENTRY },
+    };
+    writeFileSync(
+      settingsPath,
+      JSON.stringify(initial, null, 2) + '\n',
+      'utf8',
+    );
+    created.push('.gemini/settings.json');
+    return;
+  }
+
+  const content = readFileSync(settingsPath, 'utf8');
+  let parsed: McpConfigShape;
+  try {
+    parsed = JSON.parse(content) as McpConfigShape;
+  } catch {
+    const msg =
+      '.gemini/settings.json is not valid JSON; skipped MCP server registration. Fix the file and re-run `tnl init --agent gemini`.';
+    warnings.push(msg);
+    err(`tnl init: ${msg}\n`);
+    return;
+  }
+
+  const mcpServers = parsed.mcpServers ?? {};
+  if ('tnl' in mcpServers) {
+    skipped.push('.gemini/settings.json');
+    return;
+  }
+
+  mcpServers.tnl = MCP_SERVER_ENTRY;
+  parsed.mcpServers = mcpServers;
+
+  writeFileSync(
+    settingsPath,
+    JSON.stringify(parsed, null, 2) + '\n',
+    'utf8',
+  );
+  created.push('.gemini/settings.json (tnl added)');
 }
 
 interface SettingsShape {
