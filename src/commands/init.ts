@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,7 +13,61 @@ const INSTRUCTION_FILES: Record<AgentName, string> = {
   gemini: 'GEMINI.md',
 };
 
-const STANZA_SENTINEL = '<!-- tnl:workflow-stanza -->';
+const STANZA_START_PREFIX = '<!-- tnl:workflow-stanza:start hash=';
+const STANZA_START_SUFFIX = ' -->';
+const STANZA_END = '<!-- tnl:workflow-stanza:end -->';
+const LEGACY_STANZA_SENTINEL = '<!-- tnl:workflow-stanza -->';
+
+function stanzaHash(body: string): string {
+  return createHash('sha256').update(body).digest('hex').slice(0, 8);
+}
+
+function wrapStanza(body: string): string {
+  return `${STANZA_START_PREFIX}${stanzaHash(body)}${STANZA_START_SUFFIX}\n${body}${STANZA_END}\n`;
+}
+
+type StanzaAction =
+  | { kind: 'create'; result: string }
+  | { kind: 'current' }
+  | { kind: 'upgrade'; result: string }
+  | { kind: 'legacy-migrate'; result: string };
+
+function applyStanza(existing: string | null, body: string): StanzaAction {
+  const full = wrapStanza(body);
+  if (existing === null) {
+    return { kind: 'create', result: full };
+  }
+  const hash = stanzaHash(body);
+  const startRe = /<!-- tnl:workflow-stanza:start hash=([a-f0-9]+) -->/;
+  const startMatch = existing.match(startRe);
+  if (startMatch) {
+    const fileHash = startMatch[1];
+    const startIdx = startMatch.index!;
+    const endIdx = existing.indexOf(STANZA_END, startIdx);
+    if (endIdx === -1) {
+      return {
+        kind: 'legacy-migrate',
+        result: existing.slice(0, startIdx).replace(/\n+$/, '\n') + full,
+      };
+    }
+    if (fileHash === hash) return { kind: 'current' };
+    const afterEnd = endIdx + STANZA_END.length;
+    const after = existing.slice(afterEnd).replace(/^\n/, '');
+    return {
+      kind: 'upgrade',
+      result: existing.slice(0, startIdx) + full + after,
+    };
+  }
+  const legacyIdx = existing.indexOf(LEGACY_STANZA_SENTINEL);
+  if (legacyIdx !== -1) {
+    return {
+      kind: 'legacy-migrate',
+      result: existing.slice(0, legacyIdx).replace(/\n+$/, '\n') + full,
+    };
+  }
+  const separator = existing.endsWith('\n') ? '\n' : '\n\n';
+  return { kind: 'create', result: existing + separator + full };
+}
 
 // Baseline workflow; keep in sync with this repo's tnl/workflow.tnl.
 // The `owners` field is a placeholder that adopters replace after init.
@@ -51,8 +106,7 @@ rationale:
     - Exhaustive self-attestation forces the agent to reconcile "what the contract required" against "what I actually wrote," which is where misses have historically been caught.
 `;
 
-export const STANZA_TEMPLATE = `${STANZA_SENTINEL}
-## TNL — Typed Natural Language
+export const STANZA_TEMPLATE = `## TNL — Typed Natural Language
 
 This repository uses TNL (Typed Natural Language): structured English contracts that describe behavioral surfaces for agent-written code. TNL files live in [\`tnl/\`](./tnl/).
 
@@ -210,6 +264,8 @@ export function runInit(options: InitOptions = {}): number {
   const created: string[] = [];
   const skipped: string[] = [];
   const suppressed: string[] = [];
+  const upgraded: string[] = [];
+  const legacyMigrated: string[] = [];
   const warnings: string[] = [];
 
   let templates: InstallTemplates = DEFAULT_TEMPLATES;
@@ -250,22 +306,33 @@ export function runInit(options: InitOptions = {}): number {
     for (const agent of targets) {
       const file = INSTRUCTION_FILES[agent];
       const filePath = join(cwd, file);
-      const stanza =
+      const body =
         agent === 'claude' && withSkill
           ? STANZA_TEMPLATE + CLAUDE_STANZA_ADDITION
           : STANZA_TEMPLATE;
-      if (existsSync(filePath)) {
-        const content = readFileSync(filePath, 'utf8');
-        if (content.includes(STANZA_SENTINEL)) {
+      const existing = existsSync(filePath)
+        ? readFileSync(filePath, 'utf8')
+        : null;
+      const action = applyStanza(existing, body);
+      switch (action.kind) {
+        case 'create':
+          writeFileSync(filePath, action.result, 'utf8');
+          created.push(existing === null ? file : `${file} (stanza appended)`);
+          break;
+        case 'current':
           skipped.push(file);
-          continue;
-        }
-        const separator = content.endsWith('\n') ? '\n' : '\n\n';
-        writeFileSync(filePath, content + separator + stanza, 'utf8');
-        created.push(`${file} (stanza appended)`);
-      } else {
-        writeFileSync(filePath, stanza, 'utf8');
-        created.push(file);
+          break;
+        case 'upgrade':
+          writeFileSync(filePath, action.result, 'utf8');
+          upgraded.push(file);
+          break;
+        case 'legacy-migrate':
+          writeFileSync(filePath, action.result, 'utf8');
+          legacyMigrated.push(file);
+          warnings.push(
+            `${file}: migrated from legacy stanza sentinel (no end marker). Verify no content below the old stanza was lost.`,
+          );
+          break;
       }
     }
 
@@ -322,6 +389,14 @@ export function runInit(options: InitOptions = {}): number {
   if (created.length > 0) {
     lines.push('Created:');
     for (const c of created) lines.push(`  ${c}`);
+  }
+  if (upgraded.length > 0) {
+    lines.push('Upgraded:');
+    for (const u of upgraded) lines.push(`  ${u}`);
+  }
+  if (legacyMigrated.length > 0) {
+    lines.push('Upgraded (legacy migrated):');
+    for (const m of legacyMigrated) lines.push(`  ${m}`);
   }
   if (skipped.length > 0) {
     lines.push('Skipped (already present):');

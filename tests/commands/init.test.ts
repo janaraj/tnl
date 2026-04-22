@@ -100,7 +100,7 @@ describe('tnl init', () => {
     const code = runInit({ cwd, ...cap.opts });
     expect(code).toBe(0);
     const claudeMd = readFileSync(join(cwd, 'CLAUDE.md'), 'utf8');
-    expect(claudeMd).toContain('<!-- tnl:workflow-stanza -->');
+    expect(claudeMd).toContain('<!-- tnl:workflow-stanza:start hash=');
     expect(claudeMd).toContain('TNL — Typed Natural Language');
   });
 
@@ -111,7 +111,7 @@ describe('tnl init', () => {
     runInit({ cwd, ...cap.opts });
     const agents = readFileSync(join(cwd, 'AGENTS.md'), 'utf8');
     expect(agents.startsWith(existing)).toBe(true);
-    expect(agents).toContain('<!-- tnl:workflow-stanza -->');
+    expect(agents).toContain('<!-- tnl:workflow-stanza:start hash=');
   });
 
   it('detects GEMINI.md and appends stanza', () => {
@@ -119,7 +119,7 @@ describe('tnl init', () => {
     const cap = capture();
     runInit({ cwd, ...cap.opts });
     const gemini = readFileSync(join(cwd, 'GEMINI.md'), 'utf8');
-    expect(gemini).toContain('<!-- tnl:workflow-stanza -->');
+    expect(gemini).toContain('<!-- tnl:workflow-stanza:start hash=');
     expect(gemini.startsWith('# gemini project\n')).toBe(true);
   });
 
@@ -129,10 +129,10 @@ describe('tnl init', () => {
     const cap = capture();
     runInit({ cwd, ...cap.opts });
     expect(readFileSync(join(cwd, 'CLAUDE.md'), 'utf8')).toContain(
-      '<!-- tnl:workflow-stanza -->',
+      '<!-- tnl:workflow-stanza:start hash=',
     );
     expect(readFileSync(join(cwd, 'AGENTS.md'), 'utf8')).toContain(
-      '<!-- tnl:workflow-stanza -->',
+      '<!-- tnl:workflow-stanza:start hash=',
     );
   });
 
@@ -143,7 +143,7 @@ describe('tnl init', () => {
     runInit({ cwd, agent: 'gemini', ...cap.opts });
     expect(existsSync(join(cwd, 'GEMINI.md'))).toBe(true);
     expect(readFileSync(join(cwd, 'GEMINI.md'), 'utf8')).toContain(
-      '<!-- tnl:workflow-stanza -->',
+      '<!-- tnl:workflow-stanza:start hash=',
     );
     expect(existsSync(join(cwd, 'CLAUDE.md'))).toBe(false);
     expect(readFileSync(join(cwd, 'AGENTS.md'), 'utf8')).toBe('# agents\n');
@@ -580,7 +580,7 @@ describe('tnl init', () => {
     expect(existsSync(join(cwd, 'tnl', 'workflow.tnl'))).toBe(true);
     expect(existsSync(join(cwd, 'CLAUDE.md'))).toBe(true);
     const claudeMd = readFileSync(join(cwd, 'CLAUDE.md'), 'utf8');
-    expect(claudeMd).toContain('<!-- tnl:workflow-stanza -->');
+    expect(claudeMd).toContain('<!-- tnl:workflow-stanza:start hash=');
   });
 
   it('writes .gemini/settings.json with the tnl server entry when --agent gemini on empty cwd', () => {
@@ -1090,6 +1090,87 @@ describe('tnl init', () => {
       expect(TNL_FEATURE_SKILL_TEMPLATE).not.toMatch(/## 3\. /);
       expect(TNL_FEATURE_SKILL_TEMPLATE).not.toMatch(/## 5\. /);
       expect(TNL_FEATURE_SKILL_TEMPLATE).not.toMatch(/## 7\. /);
+    });
+  });
+
+  describe('stanza upgrade / legacy migration', () => {
+    it('writes start+end sentinels with a content hash on fresh install', () => {
+      runInit({ cwd, agent: 'claude', stdout: () => {}, stderr: () => {} });
+      const claudeMd = readFileSync(join(cwd, 'CLAUDE.md'), 'utf8');
+      expect(claudeMd).toMatch(
+        /<!-- tnl:workflow-stanza:start hash=[a-f0-9]{8} -->/,
+      );
+      expect(claudeMd).toContain('<!-- tnl:workflow-stanza:end -->');
+    });
+
+    it('second run on unchanged content is byte-identical and reports Skipped (already present)', () => {
+      runInit({ cwd, agent: 'claude', stdout: () => {}, stderr: () => {} });
+      const first = readFileSync(join(cwd, 'CLAUDE.md'), 'utf8');
+      const cap = capture();
+      runInit({ cwd, agent: 'claude', ...cap.opts });
+      const second = readFileSync(join(cwd, 'CLAUDE.md'), 'utf8');
+      expect(second).toBe(first);
+      expect(cap.stdout()).toContain('Skipped (already present)');
+      expect(cap.stdout()).toContain('CLAUDE.md');
+      expect(cap.stdout()).not.toContain('Upgraded');
+    });
+
+    it('upgrades a stale-hash stanza in place, preserving content outside the block', () => {
+      const before = '# Project\n\nBefore stanza.\n\n';
+      const fakeStaleBlock =
+        '<!-- tnl:workflow-stanza:start hash=deadbeef -->\n' +
+        '## TNL — old content\n' +
+        '<!-- tnl:workflow-stanza:end -->\n';
+      const after = '\n## Appendix\n\nContent after stanza.\n';
+      writeFileSync(join(cwd, 'CLAUDE.md'), before + fakeStaleBlock + after, 'utf8');
+      const cap = capture();
+      runInit({ cwd, agent: 'claude', ...cap.opts });
+      const content = readFileSync(join(cwd, 'CLAUDE.md'), 'utf8');
+      expect(content.startsWith(before)).toBe(true);
+      expect(content.endsWith(after)).toBe(true);
+      expect(content).toContain('## TNL — Typed Natural Language');
+      expect(content).not.toContain('old content');
+      expect(content).not.toContain('deadbeef');
+      expect(cap.stdout()).toContain('Upgraded:');
+      expect(cap.stdout()).toContain('CLAUDE.md');
+    });
+
+    it('migrates a legacy stanza (old sentinel, no end marker) and emits a warning', () => {
+      const before = '# Project\n\nProject intro.\n\n';
+      const legacy = '<!-- tnl:workflow-stanza -->\n## TNL — legacy content\n';
+      writeFileSync(join(cwd, 'CLAUDE.md'), before + legacy, 'utf8');
+      const cap = capture();
+      runInit({ cwd, agent: 'claude', ...cap.opts });
+      const content = readFileSync(join(cwd, 'CLAUDE.md'), 'utf8');
+      // Trailing blank lines before the legacy block are collapsed to a single \n
+      expect(content.startsWith('# Project\n\nProject intro.\n')).toBe(true);
+      expect(content).toContain('<!-- tnl:workflow-stanza:start hash=');
+      expect(content).toContain('<!-- tnl:workflow-stanza:end -->');
+      expect(content).not.toContain('legacy content');
+      expect(cap.stdout()).toContain('Upgraded (legacy migrated):');
+      expect(cap.stdout()).toContain('Warnings:');
+      expect(cap.stdout()).toContain('legacy stanza sentinel');
+    });
+
+    it('stanza hash changes when CLAUDE_STANZA_ADDITION toggles via --with-skill', () => {
+      runInit({ cwd, agent: 'claude', stdout: () => {}, stderr: () => {} });
+      const withoutSkill = readFileSync(join(cwd, 'CLAUDE.md'), 'utf8');
+      const hashWithoutMatch = withoutSkill.match(
+        /<!-- tnl:workflow-stanza:start hash=([a-f0-9]+) -->/,
+      );
+      expect(hashWithoutMatch).not.toBeNull();
+
+      // Re-run with --with-skill; the hash should differ, triggering upgrade.
+      const cap = capture();
+      runInit({ cwd, agent: 'claude', withSkill: true, ...cap.opts });
+      const withSkill = readFileSync(join(cwd, 'CLAUDE.md'), 'utf8');
+      const hashWithMatch = withSkill.match(
+        /<!-- tnl:workflow-stanza:start hash=([a-f0-9]+) -->/,
+      );
+      expect(hashWithMatch).not.toBeNull();
+      expect(hashWithMatch![1]).not.toBe(hashWithoutMatch![1]);
+      expect(withSkill).toContain('/tnl-feature');
+      expect(cap.stdout()).toContain('Upgraded:');
     });
   });
 });
