@@ -101,6 +101,12 @@ Other signals:
 
 ---
 
+## Built with TNL
+
+We built this tool using its own workflow — the minimal form (CLAUDE.md stanza + `tnl/`, no hooks or MCP). The baseline rules live in [`tnl/workflow.tnl`](./tnl/workflow.tnl), and every feature has its own TNL in [`tnl/`](./tnl/) (23 and counting). In practice: faster turnaround, few rework cycles, each next change edits the spec instead of re-analysing code. One project's worth of evidence, but the meta-test isn't nothing.
+
+---
+
 ## Install
 
 ```bash
