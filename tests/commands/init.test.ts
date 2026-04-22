@@ -176,7 +176,7 @@ describe('tnl init', () => {
     const content = readFileSync(skillPath, 'utf8');
     expect(content).toContain('description:');
     expect(content).toContain('$ARGUMENTS');
-    expect(content).toContain('Self-attest');
+    expect(content).toContain('CLAUDE.md');
   });
 
   it('auto-creates .claude/commands/ directory when installing the skill', () => {
@@ -1004,8 +1004,11 @@ describe('tnl init', () => {
       expect(STANZA_TEMPLATE).toContain('### RFC 2119 keywords');
     });
 
-    it('STANZA_TEMPLATE contains edit-vs-new guidance', () => {
-      expect(STANZA_TEMPLATE).toContain('When a new TNL file is justified');
+    it('STANZA_TEMPLATE contains variance-reducer phrases (edge cases, non-goals, scope fence, property changes)', () => {
+      expect(STANZA_TEMPLATE).toContain('edge cases as MUST clauses');
+      expect(STANZA_TEMPLATE).toContain('explicit non-goals');
+      expect(STANZA_TEMPLATE).toContain('scope fence');
+      expect(STANZA_TEMPLATE).toContain('are edits, not new files');
     });
 
     it('AGENTS.md carries the identical schema block after --agent codex', () => {
@@ -1014,7 +1017,8 @@ describe('tnl init', () => {
       const agentsMd = readFileSync(join(cwd, 'AGENTS.md'), 'utf8');
       expect(agentsMd).toContain('### TNL format');
       expect(agentsMd).toContain('### RFC 2119 keywords');
-      expect(agentsMd).toContain('When a new TNL file is justified');
+      expect(agentsMd).toContain('are edits, not new files');
+      expect(agentsMd).toContain('scope fence');
       expect(agentsMd).toContain('inline in the chat reply');
       expect(agentsMd).not.toContain('before writing code');
     });
@@ -1025,25 +1029,22 @@ describe('tnl init', () => {
       const geminiMd = readFileSync(join(cwd, 'GEMINI.md'), 'utf8');
       expect(geminiMd).toContain('### TNL format');
       expect(geminiMd).toContain('### RFC 2119 keywords');
-      expect(geminiMd).toContain('When a new TNL file is justified');
+      expect(geminiMd).toContain('are edits, not new files');
+      expect(geminiMd).toContain('scope fence');
       expect(geminiMd).toContain('inline in the chat reply');
       expect(geminiMd).not.toContain('before writing code');
     });
 
-    it('TNL_FEATURE_SKILL_TEMPLATE contains anti-file-write phrasing in propose section', () => {
-      expect(TNL_FEATURE_SKILL_TEMPLATE).toContain('inline in the chat reply');
+    it('TNL_FEATURE_SKILL_TEMPLATE is a thin pointer — frontmatter, $ARGUMENTS, CLAUDE.md reference', () => {
+      expect(TNL_FEATURE_SKILL_TEMPLATE).toContain('description:');
+      expect(TNL_FEATURE_SKILL_TEMPLATE).toContain('$ARGUMENTS');
+      expect(TNL_FEATURE_SKILL_TEMPLATE).toContain('CLAUDE.md');
     });
 
-    it('TNL_FEATURE_SKILL_TEMPLATE has a ## 5 Save heading after ## 4 Wait', () => {
-      const waitIdx = TNL_FEATURE_SKILL_TEMPLATE.indexOf('## 4. Wait');
-      const saveIdx = TNL_FEATURE_SKILL_TEMPLATE.indexOf('## 5. Save');
-      expect(waitIdx).toBeGreaterThan(-1);
-      expect(saveIdx).toBeGreaterThan(waitIdx);
-      expect(TNL_FEATURE_SKILL_TEMPLATE).toContain('`tnl/<slug>.tnl`');
-    });
-
-    it('TNL_FEATURE_SKILL_TEMPLATE does NOT contain "before writing code"', () => {
-      expect(TNL_FEATURE_SKILL_TEMPLATE).not.toContain('before writing code');
+    it('TNL_FEATURE_SKILL_TEMPLATE does NOT duplicate the stanza numbered task-flow steps', () => {
+      expect(TNL_FEATURE_SKILL_TEMPLATE).not.toMatch(/## 3\. /);
+      expect(TNL_FEATURE_SKILL_TEMPLATE).not.toMatch(/## 5\. /);
+      expect(TNL_FEATURE_SKILL_TEMPLATE).not.toMatch(/## 7\. /);
     });
   });
 });

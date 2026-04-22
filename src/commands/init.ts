@@ -59,12 +59,12 @@ This repository uses TNL (Typed Natural Language): structured English contracts 
 **Session start.** Read [\`tnl/workflow.tnl\`](./tnl/workflow.tnl) for baseline coding principles, plus any \`tnl/*.tnl\` file whose \`paths:\` or \`surfaces:\` overlap with the code you are about to touch.
 
 **Task flow.**
-1. **Scope.** Check \`tnl/\` for existing TNLs covering the request. If the task modifies behavior already described, the output is an *edit* to that file; if it introduces a genuinely new behavioral surface, the output is a *new TNL*.
+1. **Scope.** Check \`tnl/\` for existing TNLs covering the request. If the task modifies behavior already described, the output is an *edit* to that file; if it introduces a genuinely new behavioral surface, the output is a *new TNL*. Property changes to existing surfaces (new validation rule, tightened constraint, new input/output on an existing route) are edits, not new files.
 2. **Clarify.** If the request admits multiple reasonable interpretations, ask targeted clarifying questions first. Do not silently pick one.
 3. **Propose the TNL inline in the chat reply.** Output the full proposed TNL content as a fenced code block in your chat reply. Do NOT write it to a file yet. Keep it concrete: real paths, named function signatures, edge cases as MUST clauses, explicit non-goals.
 4. **Wait for user approval.** Nothing is written to disk — including the TNL file itself — until the user approves. Incorporate any edits the user requests before proceeding.
 5. **Save the approved TNL** to \`tnl/<slug>.tnl\` (kebab-case, matching the \`id:\` field). For edits, update the existing file in place.
-6. **Implement against the approved TNL.** Every MUST clause must map to specific code or tests. Modify only files listed in \`paths:\` unless the user explicitly agrees to scope expansion.
+6. **Implement against the approved TNL.** Every MUST clause must map to specific code or tests. Paths in the machine zone are the scope fence — do not modify files outside \`paths:\` unless the user explicitly agrees.
 7. **Self-attest.** List each MUST clause from \`workflow.tnl\` plus the feature TNL(s) touched. For each, state: (a) satisfied — by which file/function/test, (b) could not satisfy — why, or (c) did not apply — why. Exhaustive; silent omission counts as a miss.
 
 ### TNL format
@@ -101,15 +101,6 @@ rationale:
 - **MAY** — permission, not requirement.
 - **\`[semantic]\`** prefix — clause requires judgment to verify rather than a structural check. Confirm in self-attestation.
 
-### When a new TNL file is justified
-
-Only for:
-- A genuinely new behavioral surface (new CLI subcommand, new MCP tool, new subsystem)
-- A cross-cutting policy spanning multiple existing TNLs
-- A feature with a clear boundary not already covered by any existing TNL
-
-Any other change — modifying inputs, outputs, semantics, validation, or constraints of an existing surface — is an edit to the existing file, not a new one.
-
 See [\`tnl/workflow.tnl\`](./tnl/workflow.tnl) for the full baseline.
 `;
 
@@ -125,40 +116,11 @@ description: Propose a TNL for a feature, get user approval, then implement agai
 
 Arguments: $ARGUMENTS
 
-Run the TNL workflow for the feature described in arguments. Follow these steps exactly.
+Run the TNL workflow for the feature described above.
 
-## 1. Scope
+Follow the numbered task flow defined in [\`CLAUDE.md\`](../../CLAUDE.md) (the "TNL — Typed Natural Language" section). Those steps — scope, clarify, propose inline, wait for approval, save, implement, self-attest — are authoritative. This skill does not re-specify them. If \`CLAUDE.md\` is missing the stanza, run \`tnl init --agent claude\` first.
 
-Read [\`tnl/workflow.tnl\`](../../tnl/workflow.tnl) and any \`tnl/*.tnl\` whose \`paths:\` or \`surfaces:\` overlap with the code you are about to touch. If the TNL MCP server is configured, use the \`get_impacted_tnls\` tool with the likely target code paths.
-
-## 2. Clarify
-
-If the request admits more than one reasonable interpretation, ask targeted clarifying questions BEFORE proposing a TNL. Do NOT silently pick an interpretation.
-
-## 3. Propose (inline in the chat reply)
-
-Draft the TNL and output its full content as a fenced code block in your chat reply. Do NOT write it to a file at this step.
-
-- **New behavioral surface** → new TNL with \`id:\` matching the intended filename stem.
-- **Modified behavior** → edit to the existing TNL (show the changed clauses).
-
-Every MUST clause must be concrete and testable (specific paths, function names, test names). If the MCP \`propose_tnl_diff\` tool is configured, use it to stage the proposal and return a \`diff_id\` — staging still does NOT write the live file.
-
-## 4. Wait for approval
-
-Nothing is written to disk — including the TNL file itself — until the user approves. Incorporate any edits the user makes before proceeding.
-
-## 5. Save the approved TNL
-
-Write the approved content to \`tnl/<slug>.tnl\` (kebab-case, matching \`id:\`). For edits, update the existing file in place. If step 3 used \`propose_tnl_diff\`, call \`approve_tnl_diff\` now to write the file and regenerate its sidecar.
-
-## 6. Implement
-
-Write the code and tests the approved TNL requires. Modify only files listed in the TNL's \`paths:\` unless the user explicitly agrees to scope expansion.
-
-## 7. Self-attest
-
-List each MUST clause from \`workflow.tnl\` plus the feature TNL(s) touched. For each state: (a) satisfied — by which file/function/test, (b) could not satisfy — why, or (c) did not apply — why. The list MUST be exhaustive.
+If the MCP TNL server is configured, prefer \`get_impacted_tnls\` during scope and \`propose_tnl_diff\` / \`approve_tnl_diff\` during propose/save.
 `;
 
 export interface InitOptions {
