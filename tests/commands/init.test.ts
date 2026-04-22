@@ -167,9 +167,26 @@ describe('tnl init', () => {
     expect(cap.stdout()).toContain('CLAUDE.md');
   });
 
-  it('writes .claude/commands/tnl-feature.md when --agent claude on an empty cwd', () => {
+  it('default --agent claude does NOT write the skill file or /tnl-feature line', () => {
     const cap = capture();
     const code = runInit({ cwd, agent: 'claude', ...cap.opts });
+    expect(code).toBe(0);
+    const skillPath = join(cwd, '.claude', 'commands', 'tnl-feature.md');
+    expect(existsSync(skillPath)).toBe(false);
+    expect(readFileSync(join(cwd, 'CLAUDE.md'), 'utf8')).not.toContain(
+      '/tnl-feature',
+    );
+    expect(cap.stdout()).not.toContain('.claude/commands/tnl-feature.md');
+  });
+
+  it('--with-skill + --agent claude writes the skill file and /tnl-feature line', () => {
+    const cap = capture();
+    const code = runInit({
+      cwd,
+      agent: 'claude',
+      withSkill: true,
+      ...cap.opts,
+    });
     expect(code).toBe(0);
     const skillPath = join(cwd, '.claude', 'commands', 'tnl-feature.md');
     expect(existsSync(skillPath)).toBe(true);
@@ -177,15 +194,25 @@ describe('tnl init', () => {
     expect(content).toContain('description:');
     expect(content).toContain('$ARGUMENTS');
     expect(content).toContain('CLAUDE.md');
+    expect(readFileSync(join(cwd, 'CLAUDE.md'), 'utf8')).toContain(
+      '/tnl-feature',
+    );
+    expect(cap.stdout()).toContain('.claude/commands/tnl-feature.md');
   });
 
-  it('auto-creates .claude/commands/ directory when installing the skill', () => {
+  it('auto-creates .claude/commands/ directory under --with-skill', () => {
     expect(existsSync(join(cwd, '.claude'))).toBe(false);
-    runInit({ cwd, agent: 'claude', stdout: () => {}, stderr: () => {} });
+    runInit({
+      cwd,
+      agent: 'claude',
+      withSkill: true,
+      stdout: () => {},
+      stderr: () => {},
+    });
     expect(existsSync(join(cwd, '.claude', 'commands'))).toBe(true);
   });
 
-  it('skips the skill and reports it when the file already exists', () => {
+  it('skips the skill and reports it when the file already exists under --with-skill', () => {
     mkdirSync(join(cwd, '.claude', 'commands'), { recursive: true });
     const existing = '# custom skill\n';
     writeFileSync(
@@ -194,7 +221,7 @@ describe('tnl init', () => {
       'utf8',
     );
     const cap = capture();
-    runInit({ cwd, agent: 'claude', ...cap.opts });
+    runInit({ cwd, agent: 'claude', withSkill: true, ...cap.opts });
     expect(
       readFileSync(
         join(cwd, '.claude', 'commands', 'tnl-feature.md'),
@@ -205,26 +232,31 @@ describe('tnl init', () => {
     expect(cap.stdout()).toContain('.claude/commands/tnl-feature.md');
   });
 
-  it('does NOT install the skill when --agent codex', () => {
-    runInit({ cwd, agent: 'codex', stdout: () => {}, stderr: () => {} });
+  it('does NOT install the skill when --agent codex --with-skill (silently ignored)', () => {
+    const cap = capture();
+    runInit({ cwd, agent: 'codex', withSkill: true, ...cap.opts });
     expect(
       existsSync(join(cwd, '.claude', 'commands', 'tnl-feature.md')),
     ).toBe(false);
-  });
-
-  it('does NOT install the skill when --agent gemini', () => {
-    runInit({ cwd, agent: 'gemini', stdout: () => {}, stderr: () => {} });
-    expect(
-      existsSync(join(cwd, '.claude', 'commands', 'tnl-feature.md')),
-    ).toBe(false);
-  });
-
-  it('Claude stanza references /tnl-feature; codex and gemini stanzas do not', () => {
-    runInit({ cwd, agent: 'claude', stdout: () => {}, stderr: () => {} });
-    expect(readFileSync(join(cwd, 'CLAUDE.md'), 'utf8')).toContain(
+    expect(readFileSync(join(cwd, 'AGENTS.md'), 'utf8')).not.toContain(
       '/tnl-feature',
     );
+    expect(cap.stderr()).toBe('');
+  });
 
+  it('does NOT install the skill when --agent gemini --with-skill (silently ignored)', () => {
+    const cap = capture();
+    runInit({ cwd, agent: 'gemini', withSkill: true, ...cap.opts });
+    expect(
+      existsSync(join(cwd, '.claude', 'commands', 'tnl-feature.md')),
+    ).toBe(false);
+    expect(readFileSync(join(cwd, 'GEMINI.md'), 'utf8')).not.toContain(
+      '/tnl-feature',
+    );
+    expect(cap.stderr()).toBe('');
+  });
+
+  it('codex and gemini stanzas never contain /tnl-feature regardless of --with-skill', () => {
     const cwd2 = mkdtempSync(join(tmpdir(), 'tnl-init-codex-'));
     try {
       runInit({ cwd: cwd2, agent: 'codex', stdout: () => {}, stderr: () => {} });
@@ -249,12 +281,6 @@ describe('tnl init', () => {
     } finally {
       rmSync(cwd3, { recursive: true, force: true });
     }
-  });
-
-  it('summary lists the skill path on first run', () => {
-    const cap = capture();
-    runInit({ cwd, agent: 'claude', ...cap.opts });
-    expect(cap.stdout()).toContain('.claude/commands/tnl-feature.md');
   });
 
   it('writes .claude/settings.json with the PreToolUse hook entry when absent', () => {
@@ -477,7 +503,7 @@ describe('tnl init', () => {
     ).toBe(true);
   });
 
-  it('--minimal suppresses CI, MCP, hook, and skill installs', () => {
+  it('--minimal suppresses CI, MCP, and hook installs (skill is off by default, not listed as opt-out)', () => {
     const cap = capture();
     runInit({ cwd, agent: 'claude', minimal: true, ...cap.opts });
     expect(existsSync(join(cwd, '.github', 'workflows', 'tnl-verify.yml'))).toBe(
@@ -491,12 +517,13 @@ describe('tnl init', () => {
     // Baseline artifacts still written
     expect(existsSync(join(cwd, 'tnl', 'workflow.tnl'))).toBe(true);
     expect(existsSync(join(cwd, 'CLAUDE.md'))).toBe(true);
-    // Summary lists them under opt-out
+    // Summary lists suppressed steps under opt-out
     expect(cap.stdout()).toContain('Skipped (opt-out):');
     expect(cap.stdout()).toContain('.github/workflows/tnl-verify.yml');
     expect(cap.stdout()).toContain('.mcp.json');
     expect(cap.stdout()).toContain('.claude/settings.json');
-    expect(cap.stdout()).toContain('.claude/commands/tnl-feature.md');
+    // Skill is not listed as opt-out because default is "no skill" (silent)
+    expect(cap.stdout()).not.toContain('.claude/commands/tnl-feature.md');
   });
 
   it('--no-ci suppresses only the CI workflow', () => {
@@ -506,9 +533,6 @@ describe('tnl init', () => {
     );
     expect(existsSync(join(cwd, '.mcp.json'))).toBe(true);
     expect(existsSync(join(cwd, '.claude', 'settings.json'))).toBe(true);
-    expect(
-      existsSync(join(cwd, '.claude', 'commands', 'tnl-feature.md')),
-    ).toBe(true);
   });
 
   it('--no-mcp suppresses only .mcp.json', () => {
@@ -518,9 +542,6 @@ describe('tnl init', () => {
       true,
     );
     expect(existsSync(join(cwd, '.claude', 'settings.json'))).toBe(true);
-    expect(
-      existsSync(join(cwd, '.claude', 'commands', 'tnl-feature.md')),
-    ).toBe(true);
   });
 
   it('--no-hook suppresses only the .claude/settings.json hook entry', () => {
@@ -530,21 +551,6 @@ describe('tnl init', () => {
       true,
     );
     expect(existsSync(join(cwd, '.mcp.json'))).toBe(true);
-    expect(
-      existsSync(join(cwd, '.claude', 'commands', 'tnl-feature.md')),
-    ).toBe(true);
-  });
-
-  it('--no-skill suppresses only the slash command file', () => {
-    runInit({ cwd, agent: 'claude', noSkill: true, stdout: () => {}, stderr: () => {} });
-    expect(
-      existsSync(join(cwd, '.claude', 'commands', 'tnl-feature.md')),
-    ).toBe(false);
-    expect(existsSync(join(cwd, '.github', 'workflows', 'tnl-verify.yml'))).toBe(
-      true,
-    );
-    expect(existsSync(join(cwd, '.mcp.json'))).toBe(true);
-    expect(existsSync(join(cwd, '.claude', 'settings.json'))).toBe(true);
   });
 
   it('--minimal combined with individual --no-* flags is a union (all suppressions still apply)', () => {
@@ -561,9 +567,6 @@ describe('tnl init', () => {
     );
     expect(existsSync(join(cwd, '.mcp.json'))).toBe(false);
     expect(existsSync(join(cwd, '.claude', 'settings.json'))).toBe(false);
-    expect(
-      existsSync(join(cwd, '.claude', 'commands', 'tnl-feature.md')),
-    ).toBe(false);
   });
 
   it('tnl/, workflow.tnl, and CLAUDE.md stanza are always written regardless of flags', () => {

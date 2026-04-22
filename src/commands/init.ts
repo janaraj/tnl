@@ -132,7 +132,7 @@ export interface InitOptions {
   noCi?: boolean;
   noMcp?: boolean;
   noHook?: boolean;
-  noSkill?: boolean;
+  withSkill?: boolean;
   localInstall?: boolean;
   /** Test injection: override the resolved package root when `localInstall` is set. */
   pkgRoot?: string;
@@ -192,7 +192,7 @@ export function runInit(options: InitOptions = {}): number {
   const noCi = options.minimal || options.noCi || false;
   const noMcp = options.minimal || options.noMcp || false;
   const noHook = options.minimal || options.noHook || false;
-  const noSkill = options.minimal || options.noSkill || false;
+  const withSkill = options.withSkill || false;
   const localInstall = options.localInstall || false;
 
   const created: string[] = [];
@@ -239,7 +239,7 @@ export function runInit(options: InitOptions = {}): number {
       const file = INSTRUCTION_FILES[agent];
       const filePath = join(cwd, file);
       const stanza =
-        agent === 'claude'
+        agent === 'claude' && withSkill
           ? STANZA_TEMPLATE + CLAUDE_STANZA_ADDITION
           : STANZA_TEMPLATE;
       if (existsSync(filePath)) {
@@ -258,16 +258,16 @@ export function runInit(options: InitOptions = {}): number {
     }
 
     if (targets.includes('claude')) {
-      const skillDir = join(cwd, '.claude', 'commands');
-      const skillPath = join(skillDir, 'tnl-feature.md');
-      if (noSkill) {
-        suppressed.push('.claude/commands/tnl-feature.md');
-      } else if (existsSync(skillPath)) {
-        skipped.push('.claude/commands/tnl-feature.md');
-      } else {
-        mkdirSync(skillDir, { recursive: true });
-        writeFileSync(skillPath, TNL_FEATURE_SKILL_TEMPLATE, 'utf8');
-        created.push('.claude/commands/tnl-feature.md');
+      if (withSkill) {
+        const skillDir = join(cwd, '.claude', 'commands');
+        const skillPath = join(skillDir, 'tnl-feature.md');
+        if (existsSync(skillPath)) {
+          skipped.push('.claude/commands/tnl-feature.md');
+        } else {
+          mkdirSync(skillDir, { recursive: true });
+          writeFileSync(skillPath, TNL_FEATURE_SKILL_TEMPLATE, 'utf8');
+          created.push('.claude/commands/tnl-feature.md');
+        }
       }
 
       if (noHook) {
@@ -602,7 +602,7 @@ const initCommand: Command = {
       noCi: flags.has('--no-ci'),
       noMcp: flags.has('--no-mcp'),
       noHook: flags.has('--no-hook'),
-      noSkill: flags.has('--no-skill'),
+      withSkill: flags.has('--with-skill'),
       localInstall: flags.has('--local-install'),
     });
   },

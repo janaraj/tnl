@@ -7,23 +7,23 @@ surfaces: [tnl init]
 dependencies: [cli-init]
 
 intent:
-  When `tnl init` runs against a project where Claude Code is a target
-  agent, it writes the `/tnl-feature` slash command to
-  `.claude/commands/tnl-feature.md` in addition to the CLAUDE.md
-  stanza. The skill packages the TNL workflow (scope → clarify →
-  propose → wait → implement → self-attest) as a single
-  user-invocable command. The CLAUDE.md stanza references the skill
-  by name so agents and users discover it.
+  When `tnl init` runs with the `--with-skill` opt-in flag AND Claude
+  Code is a target agent, it writes `.claude/commands/tnl-feature.md`
+  as a thin pointer at the CLAUDE.md stanza, and the stanza appended
+  to CLAUDE.md includes the `/tnl-feature` reference line. The skill
+  is opt-in because CLAUDE.md's stanza already carries the full task
+  flow; the skill adds only a discoverability breadcrumb for users
+  who want an explicit slash command. Without `--with-skill`, neither
+  the file nor the stanza line is written.
 
 behaviors:
   - `src/commands/init.ts` MUST contain a fixed string constant `TNL_FEATURE_SKILL_TEMPLATE` whose body is the markdown content for `.claude/commands/tnl-feature.md`. The content MUST be a thin pointer that (a) has YAML frontmatter with `description:`, (b) references `$ARGUMENTS`, (c) tells the agent to follow the TNL task flow defined in `CLAUDE.md` (the "TNL — Typed Natural Language" section) as authoritative, (d) does NOT duplicate the numbered task-flow steps. Single source of truth is the CLAUDE.md stanza; duplicating steps across stanza and skill creates drift and causes session-to-session variance depending on whether `/tnl-feature` was invoked.
-  - When `tnl init` determines Claude is a target agent (either `.claude/` is present or `--agent claude` was passed), init MUST write `<cwd>/.claude/commands/tnl-feature.md` with `TNL_FEATURE_SKILL_TEMPLATE` content. It MUST create `.claude/commands/` if absent.
-  - If `.claude/commands/tnl-feature.md` already exists, init MUST leave the file untouched and report the skip.
-  - This installation step MAY be suppressed by `tnl init`'s `--no-skill` or `--minimal` opt-out flag (defined in `cli-init.tnl`). When suppressed, the step is skipped and the summary reports `.claude/commands/tnl-feature.md` under `Skipped (opt-out)` rather than `Created` or `Skipped (already present)`.
-  - The skill write MUST happen only for Claude targets. When the only target is `codex` or `gemini`, init MUST NOT create `.claude/commands/tnl-feature.md`.
-  - The CLAUDE.md stanza appended by init MUST reference the `/tnl-feature` command by name when Claude is a target. Other agents' stanzas MUST NOT reference it. The stanza differentiation MAY be done via separate templates or a conditional addition to the base stanza.
-  - The end-of-run summary MUST include `.claude/commands/tnl-feature.md` in the `Created` or `Skipped (already present)` section when Claude is a target.
-  - Tests MUST cover: `.claude/commands/tnl-feature.md` written when `--agent claude` is passed and the file is absent; `.claude/commands/` directory auto-created; existing skill file → skipped and reported; skill NOT written when `--agent codex` or `--agent gemini`; Claude stanza contains `/tnl-feature`; non-Claude stanzas do NOT contain `/tnl-feature`; end-of-run summary includes the skill path on first run; `TNL_FEATURE_SKILL_TEMPLATE` contains frontmatter `description:`, `$ARGUMENTS`, and a reference to `CLAUDE.md`; `TNL_FEATURE_SKILL_TEMPLATE` does NOT contain `## 3.` / `## 5.` / `## 7.` numbered-step markers that would duplicate the stanza flow.
+  - When `tnl init` determines Claude is a target agent AND the `--with-skill` flag is set, init MUST write `<cwd>/.claude/commands/tnl-feature.md` with `TNL_FEATURE_SKILL_TEMPLATE` content. It MUST create `.claude/commands/` if absent. When `--with-skill` is not set, the skill file MUST NOT be written, even when Claude is a target.
+  - If `.claude/commands/tnl-feature.md` already exists under `--with-skill`, init MUST leave the file untouched and report the skip.
+  - The skill write MUST happen only for Claude targets. When the only target is `codex` or `gemini`, init MUST NOT create `.claude/commands/tnl-feature.md` — even under `--with-skill`, which is silently ignored for non-Claude-only runs.
+  - The CLAUDE.md stanza appended by init MUST include the `/tnl-feature` slash-command reference line ONLY when `--with-skill` is set AND Claude is a target. When `--with-skill` is not set, the stanza written for Claude MUST be identical to the Codex/Gemini stanza (no slash-command line), so the stanza never advertises a skill the adopter didn't install.
+  - The end-of-run summary MUST include `.claude/commands/tnl-feature.md` in the `Created` or `Skipped (already present)` section only when `--with-skill` is set AND Claude is a target.
+  - Tests MUST cover: default `--agent claude` (no `--with-skill`) writes NO `.claude/commands/tnl-feature.md` and the CLAUDE.md stanza does NOT contain `/tnl-feature`; `--agent claude --with-skill` writes `.claude/commands/tnl-feature.md` and the stanza DOES contain `/tnl-feature`; `.claude/commands/` directory auto-created under `--with-skill`; existing skill file under `--with-skill` → skipped and reported; skill NOT written when `--agent codex --with-skill` or `--agent gemini --with-skill` (skill is Claude-only); end-of-run summary includes the skill path under `Created` / `Skipped (already present)` only when `--with-skill` + Claude target; idempotency round-trips under both default and `--with-skill` runs; `TNL_FEATURE_SKILL_TEMPLATE` contains frontmatter `description:`, `$ARGUMENTS`, and a reference to `CLAUDE.md`; `TNL_FEATURE_SKILL_TEMPLATE` does NOT contain `## 3.` / `## 5.` / `## 7.` numbered-step markers that would duplicate the stanza flow.
 
 non-goals:
   - Iterating on the `/tnl-feature` step text beyond the initial template — content tweaks over time are edits to this TNL, not new TNLs.
@@ -42,6 +42,20 @@ rationale:
   slash-command surfaces can't use the file. Installing it for them
   would be dead weight.
 
-  Why CLAUDE.md must reference the skill: the skill is user-invoked
-  via `/tnl-feature`. Without a pointer in CLAUDE.md, agents and
-  users won't discover it.
+  Why CLAUDE.md must reference the skill when installed: the skill
+  is user-invoked via `/tnl-feature`. Without a pointer in CLAUDE.md,
+  agents and users won't discover it. The reference only appears when
+  `--with-skill` is set so the stanza never advertises a command the
+  adopter didn't install.
+
+  Why skill is opt-in rather than default: after the skill body was
+  collapsed to a thin pointer at CLAUDE.md's stanza, installing it
+  by default only added a no-op middleman that some agents auto-invoke
+  on every feature request, running the pointer rather than the stanza
+  directly. The stanza fires the same task flow either way. Adopters
+  who want an explicit `/tnl-feature` command pass `--with-skill`;
+  everyone else gets a lighter install. Codex and Gemini skill support
+  is deferred to follow-up TNLs (`codex-skill-register`,
+  `gemini-skill-register`) — both agents support project-scoped skills
+  via different file formats, so extending the mechanism deserves its
+  own review.
