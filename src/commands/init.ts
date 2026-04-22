@@ -67,6 +67,15 @@ This repository uses TNL (Typed Natural Language): structured English contracts 
 6. **Implement against the approved TNL.** Every MUST clause must map to specific code or tests. Paths in the machine zone are the scope fence — do not modify files outside \`paths:\` unless the user explicitly agrees.
 7. **Self-attest.** List each MUST clause from \`workflow.tnl\` plus the feature TNL(s) touched. For each, state: (a) satisfied — by which file/function/test, (b) could not satisfy — why, or (c) did not apply — why. Exhaustive; silent omission counts as a miss.
 
+### When a new TNL file is justified
+
+Only for:
+- A genuinely new behavioral surface (new CLI subcommand, new MCP tool, new subsystem)
+- A cross-cutting policy that spans multiple existing TNLs (the model: \`workflow.tnl\`)
+- A feature with a clear boundary not already covered by any existing TNL
+
+Any other change — modifying inputs, outputs, semantics, validation, constraints, or identity rules of an existing surface — is an edit to the existing file. Do not create a new TNL to patch an existing one.
+
 ### TNL format
 
 \`\`\`

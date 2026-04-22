@@ -1026,12 +1026,40 @@ describe('tnl init', () => {
       expect(STANZA_TEMPLATE).toContain('are edits, not new files');
     });
 
+    it('STANZA_TEMPLATE has a "When a new TNL file is justified" subsection', () => {
+      expect(STANZA_TEMPLATE).toContain('### When a new TNL file is justified');
+    });
+
+    it('STANZA_TEMPLATE closes the edit-vs-new subsection with the imperative line', () => {
+      expect(STANZA_TEMPLATE).toContain(
+        'Do not create a new TNL to patch an existing one',
+      );
+    });
+
+    it('STANZA_TEMPLATE lists the always-edit categories by name', () => {
+      expect(STANZA_TEMPLATE).toContain(
+        'inputs, outputs, semantics, validation, constraints',
+      );
+    });
+
+    it('the edit-vs-new subsection appears between the task flow and the TNL format schema', () => {
+      const justified = STANZA_TEMPLATE.indexOf(
+        '### When a new TNL file is justified',
+      );
+      const format = STANZA_TEMPLATE.indexOf('### TNL format');
+      const selfAttest = STANZA_TEMPLATE.indexOf('7. **Self-attest');
+      expect(justified).toBeGreaterThan(selfAttest);
+      expect(justified).toBeLessThan(format);
+    });
+
     it('AGENTS.md carries the identical schema block after --agent codex', () => {
       const cap = capture();
       runInit({ cwd, agent: 'codex', ...cap.opts });
       const agentsMd = readFileSync(join(cwd, 'AGENTS.md'), 'utf8');
       expect(agentsMd).toContain('### TNL format');
       expect(agentsMd).toContain('### RFC 2119 keywords');
+      expect(agentsMd).toContain('### When a new TNL file is justified');
+      expect(agentsMd).toContain('Do not create a new TNL to patch an existing one');
       expect(agentsMd).toContain('are edits, not new files');
       expect(agentsMd).toContain('scope fence');
       expect(agentsMd).toContain('inline in the chat reply');
@@ -1044,6 +1072,8 @@ describe('tnl init', () => {
       const geminiMd = readFileSync(join(cwd, 'GEMINI.md'), 'utf8');
       expect(geminiMd).toContain('### TNL format');
       expect(geminiMd).toContain('### RFC 2119 keywords');
+      expect(geminiMd).toContain('### When a new TNL file is justified');
+      expect(geminiMd).toContain('Do not create a new TNL to patch an existing one');
       expect(geminiMd).toContain('are edits, not new files');
       expect(geminiMd).toContain('scope fence');
       expect(geminiMd).toContain('inline in the chat reply');
