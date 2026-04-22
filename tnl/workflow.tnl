@@ -24,7 +24,7 @@ non-goals:
 
 rationale:
   Each behavior targets a specific failure pattern observed in prior sessions:
-    - Silent interpretation of ambiguous requests leads to the wrong feature shipped fast.
+    - Locking in an interpretation without surfacing it for review ships the wrong feature fast.
     - Overengineering produces code that must be maintained forever for a problem that never materializes.
     - Incidental refactoring bundles unreviewed changes into a focused diff, hiding what actually changed.
     - Fuzzy requirements produce fuzzy implementations with edge cases silently dropped.
