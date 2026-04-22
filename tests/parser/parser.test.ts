@@ -81,6 +81,82 @@ describe('parseTnl — valid inputs', () => {
   });
 });
 
+describe('parseTnl — block-list machine fields', () => {
+  it('accepts YAML-style block-list for paths', () => {
+    const src = MINIMAL_FEATURE.replace(
+      'paths: [src/foo.ts]',
+      'paths:\n  - src/foo.ts\n  - src/bar.ts',
+    );
+    const r = parseTnl(src);
+    expect(r.machine.paths).toEqual(['src/foo.ts', 'src/bar.ts']);
+  });
+
+  it('accepts block-list for surfaces', () => {
+    const src = MINIMAL_FEATURE.replace(
+      'paths: [src/foo.ts]',
+      'paths: [src/foo.ts]\nsurfaces:\n  - CLI: foo\n  - CLI: bar',
+    );
+    const r = parseTnl(src);
+    expect(r.machine.surfaces).toEqual(['CLI: foo', 'CLI: bar']);
+  });
+
+  it('accepts block-list for owners', () => {
+    const src = MINIMAL_FEATURE.replace(
+      'owners: [@jana]',
+      'owners:\n  - @jana\n  - @bob',
+    );
+    const r = parseTnl(src);
+    expect(r.machine.owners).toEqual(['@jana', '@bob']);
+  });
+
+  it('accepts block-list for dependencies', () => {
+    const src = MINIMAL_FEATURE.replace(
+      'paths: [src/foo.ts]',
+      'paths: [src/foo.ts]\ndependencies:\n  - parser\n  - resolver',
+    );
+    const r = parseTnl(src);
+    expect(r.machine.dependencies).toEqual(['parser', 'resolver']);
+  });
+
+  it('inline and block-list forms produce identical results', () => {
+    const inlineSrc = MINIMAL_FEATURE.replace(
+      'paths: [src/foo.ts]',
+      'paths: [src/a.ts, src/b.ts]',
+    );
+    const blockSrc = MINIMAL_FEATURE.replace(
+      'paths: [src/foo.ts]',
+      'paths:\n  - src/a.ts\n  - src/b.ts',
+    );
+    expect(parseTnl(inlineSrc).machine.paths).toEqual(
+      parseTnl(blockSrc).machine.paths,
+    );
+  });
+
+  it('empty block-list (field: followed by next section) errors when scope=feature requires non-empty paths', () => {
+    const src = MINIMAL_FEATURE.replace(
+      'paths: [src/foo.ts]\n\nintent:',
+      'paths:\n\nintent:',
+    );
+    expect(() => parseTnl(src)).toThrow(/non-empty 'paths' list/);
+  });
+
+  it('block-list with malformed item (no leading "- ") raises a parse error', () => {
+    const src = MINIMAL_FEATURE.replace(
+      'paths: [src/foo.ts]',
+      'paths:\n  src/foo.ts',
+    );
+    expect(() => parseTnl(src)).toThrow(/expects '- item'/);
+  });
+
+  it('duplicate detection across inline and block-list forms', () => {
+    const src = MINIMAL_FEATURE.replace(
+      'paths: [src/foo.ts]',
+      'paths: [src/foo.ts]\npaths:\n  - src/bar.ts',
+    );
+    expect(() => parseTnl(src)).toThrow(/duplicate machine-zone field 'paths'/);
+  });
+});
+
 describe('parseTnl — machine zone validation', () => {
   it('rejects missing id', () => {
     const src = MINIMAL_FEATURE.replace('id: example\n', '');

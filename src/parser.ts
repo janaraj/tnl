@@ -54,6 +54,7 @@ const MACHINE_KEYS = new Set([
   'surfaces',
   'dependencies',
 ]);
+const LIST_MACHINE_FIELDS = new Set(['paths', 'surfaces', 'owners', 'dependencies']);
 const SECTION_KEYS = new Set(['intent', 'behaviors', 'non-goals', 'rationale']);
 
 interface SourceLine {
@@ -64,6 +65,8 @@ interface SourceLine {
 
 interface MachineRaw {
   value: string;
+  /** Pre-parsed items, populated when the field was given as a YAML-style block list. */
+  preparsed?: string[];
   line: number;
 }
 
@@ -77,8 +80,10 @@ export function parseTnl(source: string, sourcePath?: string): TnlFile {
   }));
 
   const machineRaw: Record<string, MachineRaw> = {};
+  const machineBlockList: Record<string, { items: string[]; line: number }> = {};
   const sections: Record<string, SourceLine[]> = {};
   let currentSection: string | null = null;
+  let currentMachineBlockList: string | null = null;
 
   for (const line of lines) {
     if (line.text.trim() === '') {
@@ -88,6 +93,7 @@ export function parseTnl(source: string, sourcePath?: string): TnlFile {
 
     const isTopLevel = !/^\s/.test(line.text);
     if (isTopLevel) {
+      currentMachineBlockList = null;
       const m = line.text.match(/^([a-zA-Z][a-zA-Z0-9-]*)\s*:\s*(.*)$/);
       if (!m) {
         throw new TnlParseError(line.number, `malformed line: '${line.raw}'`);
@@ -96,14 +102,22 @@ export function parseTnl(source: string, sourcePath?: string): TnlFile {
       const value = m[2]!.trim();
 
       if (value === '') {
-        if (!SECTION_KEYS.has(key)) {
+        if (SECTION_KEYS.has(key)) {
+          if (sections[key]) {
+            throw new TnlParseError(line.number, `duplicate section '${key}:'`);
+          }
+          sections[key] = [];
+          currentSection = key;
+        } else if (LIST_MACHINE_FIELDS.has(key)) {
+          if (machineRaw[key] || machineBlockList[key]) {
+            throw new TnlParseError(line.number, `duplicate machine-zone field '${key}'`);
+          }
+          machineBlockList[key] = { items: [], line: line.number };
+          currentMachineBlockList = key;
+          currentSection = null;
+        } else {
           throw new TnlParseError(line.number, `unknown top-level section '${key}:'`);
         }
-        if (sections[key]) {
-          throw new TnlParseError(line.number, `duplicate section '${key}:'`);
-        }
-        sections[key] = [];
-        currentSection = key;
       } else {
         if (SECTION_KEYS.has(key)) {
           throw new TnlParseError(
@@ -114,21 +128,34 @@ export function parseTnl(source: string, sourcePath?: string): TnlFile {
         if (!MACHINE_KEYS.has(key)) {
           throw new TnlParseError(line.number, `unknown machine-zone field '${key}'`);
         }
-        if (machineRaw[key]) {
+        if (machineRaw[key] || machineBlockList[key]) {
           throw new TnlParseError(line.number, `duplicate machine-zone field '${key}'`);
         }
         machineRaw[key] = { value, line: line.number };
         currentSection = null;
       }
-    } else {
-      if (!currentSection) {
+    } else if (currentMachineBlockList) {
+      const trimmed = line.text.trim();
+      if (!trimmed.startsWith('- ')) {
         throw new TnlParseError(
           line.number,
-          `indented content outside any section: '${line.raw}'`,
+          `machine-zone field '${currentMachineBlockList}' block-list expects '- item'; got '${line.raw}'`,
         );
       }
+      machineBlockList[currentMachineBlockList]!.items.push(trimmed.slice(2).trim());
+    } else if (currentSection) {
       sections[currentSection]!.push(line);
+    } else {
+      throw new TnlParseError(
+        line.number,
+        `indented content outside any section: '${line.raw}'`,
+      );
     }
+  }
+
+  // Fold block-list machine fields into machineRaw with preparsed items.
+  for (const [key, entry] of Object.entries(machineBlockList)) {
+    machineRaw[key] = { value: '', preparsed: entry.items, line: entry.line };
   }
 
   const machine = validateMachineZone(machineRaw, sourcePath);
@@ -209,7 +236,7 @@ function validateMachineZone(
   const scope: Scope = scopeValue;
 
   const ownersField = raw.owners!;
-  const owners = parseListValue(ownersField.value, 'owners', ownersField.line);
+  const owners = parseListValue(ownersField, 'owners');
   if (owners.length === 0) {
     throw new TnlParseError(ownersField.line, 'owners must be a non-empty list');
   }
@@ -219,7 +246,7 @@ function validateMachineZone(
     if (!raw.paths) {
       throw new TnlParseError(0, "scope 'feature' requires a 'paths' field");
     }
-    paths = parseListValue(raw.paths.value, 'paths', raw.paths.line);
+    paths = parseListValue(raw.paths, 'paths');
     if (paths.length === 0) {
       throw new TnlParseError(
         raw.paths.line,
@@ -230,11 +257,9 @@ function validateMachineZone(
     throw new TnlParseError(raw.paths.line, "scope 'repo-wide' forbids 'paths' field");
   }
 
-  const surfaces = raw.surfaces
-    ? parseListValue(raw.surfaces.value, 'surfaces', raw.surfaces.line)
-    : undefined;
+  const surfaces = raw.surfaces ? parseListValue(raw.surfaces, 'surfaces') : undefined;
   const dependencies = raw.dependencies
-    ? parseListValue(raw.dependencies.value, 'dependencies', raw.dependencies.line)
+    ? parseListValue(raw.dependencies, 'dependencies')
     : undefined;
 
   const zone: MachineZone = { id, title, scope, owners };
@@ -244,11 +269,15 @@ function validateMachineZone(
   return zone;
 }
 
-function parseListValue(value: string, fieldName: string, lineNumber: number): string[] {
+function parseListValue(raw: MachineRaw, fieldName: string): string[] {
+  if (raw.preparsed !== undefined) {
+    return raw.preparsed.filter((s) => s !== '');
+  }
+  const value = raw.value;
   if (!value.startsWith('[') || !value.endsWith(']')) {
     throw new TnlParseError(
-      lineNumber,
-      `field '${fieldName}' must be a bracket list like [a, b, c]; got '${value}'`,
+      raw.line,
+      `field '${fieldName}' must be a bracket list like [a, b, c] (or a block list with indented '- item' lines); got '${value}'`,
     );
   }
   const inside = value.slice(1, -1).trim();
