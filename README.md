@@ -79,7 +79,7 @@ Three zones: **machine** (`id`, `paths`, `surfaces`), **contract** (`behaviors` 
 
 ## Does it actually work?
 
-We ran a controlled A/B. The baseline condition uses four working principles — think before coding, simplicity first, surgical edits, goal-driven — written as prose in the project's CLAUDE.md / AGENTS.md. Same agent, same project context, same principles; only the contract step is missing. 3 tasks, 2 agents, 3 codebases.
+We ran a controlled A/B. The baseline condition uses four working principles — think before coding, simplicity first, surgical edits, goal-driven — written as prose in the project's CLAUDE.md / AGENTS.md. TNL mode uses the same four plus two more (match existing conventions; exhaustive end-of-task self-attestation) — six MUST clauses total, encoded as [`tnl/workflow.tnl`](./tnl/workflow.tnl). Same agent, same project context; only the contract step differs. 3 tasks, 2 agents, 3 codebases.
 
 Headline task: add event-driven triggers to a 16KLOC Python codebase (35 behavioural scenarios covering config, cycle prevention, cron coexistence, CLI surfaces).
 
