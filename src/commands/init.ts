@@ -51,7 +51,7 @@ rationale:
     - Exhaustive self-attestation forces the agent to reconcile "what the contract required" against "what I actually wrote," which is where misses have historically been caught.
 `;
 
-const STANZA_TEMPLATE = `${STANZA_SENTINEL}
+export const STANZA_TEMPLATE = `${STANZA_SENTINEL}
 ## TNL — Typed Natural Language
 
 This repository uses TNL (Typed Natural Language): structured English contracts that describe behavioral surfaces for agent-written code. TNL files live in [\`tnl/\`](./tnl/).
@@ -59,11 +59,56 @@ This repository uses TNL (Typed Natural Language): structured English contracts 
 **Session start.** Read [\`tnl/workflow.tnl\`](./tnl/workflow.tnl) for baseline coding principles, plus any \`tnl/*.tnl\` file whose \`paths:\` or \`surfaces:\` overlap with the code you are about to touch.
 
 **Task flow.**
-1. Scope — check \`tnl/\` for existing TNLs that cover the request.
-2. If the task introduces a new behavioral surface, propose a new TNL at \`tnl/<slug>.tnl\`. If it modifies existing behavior, propose an edit to the existing file.
-3. Wait for user approval on the TNL diff before writing code.
-4. Implement against the approved TNL. Every MUST clause must map to specific code or tests.
-5. Self-attest at end: list each MUST clause and where it is satisfied (or why not).
+1. **Scope.** Check \`tnl/\` for existing TNLs covering the request. If the task modifies behavior already described, the output is an *edit* to that file; if it introduces a genuinely new behavioral surface, the output is a *new TNL*.
+2. **Clarify.** If the request admits multiple reasonable interpretations, ask targeted clarifying questions first. Do not silently pick one.
+3. **Propose the TNL inline in the chat reply.** Output the full proposed TNL content as a fenced code block in your chat reply. Do NOT write it to a file yet. Keep it concrete: real paths, named function signatures, edge cases as MUST clauses, explicit non-goals.
+4. **Wait for user approval.** Nothing is written to disk — including the TNL file itself — until the user approves. Incorporate any edits the user requests before proceeding.
+5. **Save the approved TNL** to \`tnl/<slug>.tnl\` (kebab-case, matching the \`id:\` field). For edits, update the existing file in place.
+6. **Implement against the approved TNL.** Every MUST clause must map to specific code or tests. Modify only files listed in \`paths:\` unless the user explicitly agrees to scope expansion.
+7. **Self-attest.** List each MUST clause from \`workflow.tnl\` plus the feature TNL(s) touched. For each, state: (a) satisfied — by which file/function/test, (b) could not satisfy — why, or (c) did not apply — why. Exhaustive; silent omission counts as a miss.
+
+### TNL format
+
+\`\`\`
+id: <kebab-case-slug>         # matches filename, lowercase, hyphenated
+title: <short human-readable>
+scope: repo-wide | feature    # repo-wide applies always; feature applies when paths match
+owners: [@<handle>]
+paths: [<file paths>]         # omit for scope: repo-wide
+surfaces: [<CLI cmds, MCP tools, events>]  # optional
+dependencies: [<other tnl ids>]            # optional
+
+intent:
+  One-paragraph plain-English description of what this unit is for.
+
+behaviors:
+  - The system MUST <specific, testable behavior>.
+  - When <condition>, the system MUST <response>.
+  - [semantic] The system MUST <invariant that needs judgment to verify>.
+  - The system SHOULD <strong preference, non-blocking>.
+
+non-goals:
+  - <explicit scope fence>
+
+rationale:
+  Optional prose — tradeoffs, gotchas, or the "why" behind choices.
+\`\`\`
+
+### RFC 2119 keywords
+
+- **MUST / MUST NOT** — hard requirement. If you cannot satisfy it, flag explicitly.
+- **SHOULD / SHOULD NOT** — strong preference. Deviate only with stated reason.
+- **MAY** — permission, not requirement.
+- **\`[semantic]\`** prefix — clause requires judgment to verify rather than a structural check. Confirm in self-attestation.
+
+### When a new TNL file is justified
+
+Only for:
+- A genuinely new behavioral surface (new CLI subcommand, new MCP tool, new subsystem)
+- A cross-cutting policy spanning multiple existing TNLs
+- A feature with a clear boundary not already covered by any existing TNL
+
+Any other change — modifying inputs, outputs, semantics, validation, or constraints of an existing surface — is an edit to the existing file, not a new one.
 
 See [\`tnl/workflow.tnl\`](./tnl/workflow.tnl) for the full baseline.
 `;
@@ -90,24 +135,28 @@ Read [\`tnl/workflow.tnl\`](../../tnl/workflow.tnl) and any \`tnl/*.tnl\` whose 
 
 If the request admits more than one reasonable interpretation, ask targeted clarifying questions BEFORE proposing a TNL. Do NOT silently pick an interpretation.
 
-## 3. Propose
+## 3. Propose (inline in the chat reply)
 
-Draft a TNL diff:
+Draft the TNL and output its full content as a fenced code block in your chat reply. Do NOT write it to a file at this step.
 
-- **New behavioral surface** → new \`tnl/<slug>.tnl\` with \`id:\` matching the filename stem.
-- **Modified behavior** → edit to the existing TNL.
+- **New behavioral surface** → new TNL with \`id:\` matching the intended filename stem.
+- **Modified behavior** → edit to the existing TNL (show the changed clauses).
 
-Every MUST clause must be concrete and testable (specific file paths, function names, test names). If the MCP \`propose_tnl_diff\` tool is configured, use it to stage the proposal and return a \`diff_id\`.
+Every MUST clause must be concrete and testable (specific paths, function names, test names). If the MCP \`propose_tnl_diff\` tool is configured, use it to stage the proposal and return a \`diff_id\` — staging still does NOT write the live file.
 
 ## 4. Wait for approval
 
-Do NOT write code until the user approves the TNL diff. Incorporate any edits the user makes before proceeding.
+Nothing is written to disk — including the TNL file itself — until the user approves. Incorporate any edits the user makes before proceeding.
 
-## 5. Implement
+## 5. Save the approved TNL
 
-Write the code and tests the approved TNL requires. Modify only files listed in the TNL's \`paths:\` unless the user explicitly agrees to scope expansion. If \`propose_tnl_diff\` staged the diff, call \`approve_tnl_diff\` now to write the TNL file and regenerate its sidecar.
+Write the approved content to \`tnl/<slug>.tnl\` (kebab-case, matching \`id:\`). For edits, update the existing file in place. If step 3 used \`propose_tnl_diff\`, call \`approve_tnl_diff\` now to write the file and regenerate its sidecar.
 
-## 6. Self-attest
+## 6. Implement
+
+Write the code and tests the approved TNL requires. Modify only files listed in the TNL's \`paths:\` unless the user explicitly agrees to scope expansion.
+
+## 7. Self-attest
 
 List each MUST clause from \`workflow.tnl\` plus the feature TNL(s) touched. For each state: (a) satisfied — by which file/function/test, (b) could not satisfy — why, or (c) did not apply — why. The list MUST be exhaustive.
 `;

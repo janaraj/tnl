@@ -9,7 +9,12 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runInit, WORKFLOW_TEMPLATE } from '../../src/commands/init.js';
+import {
+  runInit,
+  STANZA_TEMPLATE,
+  TNL_FEATURE_SKILL_TEMPLATE,
+  WORKFLOW_TEMPLATE,
+} from '../../src/commands/init.js';
 import { parseTnl, parseTnlFile } from '../../src/parser.js';
 
 function capture(): {
@@ -961,6 +966,84 @@ describe('tnl init', () => {
       );
       expect(after).toBe(before);
       expect(cap.stdout()).toContain('Skipped');
+    });
+  });
+
+  describe('stanza content — approval order and schema', () => {
+    it('STANZA_TEMPLATE contains anti-file-write phrasing in propose step', () => {
+      expect(STANZA_TEMPLATE).toContain('inline in the chat reply');
+    });
+
+    it('STANZA_TEMPLATE has a distinct Save step numbered after the Wait step', () => {
+      const waitIdx = STANZA_TEMPLATE.indexOf('Wait for user approval');
+      const saveIdx = STANZA_TEMPLATE.indexOf('Save the approved TNL');
+      expect(waitIdx).toBeGreaterThan(-1);
+      expect(saveIdx).toBeGreaterThan(waitIdx);
+      expect(STANZA_TEMPLATE).toContain('`tnl/<slug>.tnl`');
+    });
+
+    it('STANZA_TEMPLATE does NOT use "before writing code" as approval gate', () => {
+      expect(STANZA_TEMPLATE).not.toContain('before writing code');
+    });
+
+    it('STANZA_TEMPLATE contains a TNL-format fenced schema block with required field labels', () => {
+      expect(STANZA_TEMPLATE).toContain('### TNL format');
+      expect(STANZA_TEMPLATE).toContain('id:');
+      expect(STANZA_TEMPLATE).toContain('behaviors:');
+      expect(STANZA_TEMPLATE).toContain('non-goals:');
+      expect(STANZA_TEMPLATE).toContain('rationale:');
+      const fenceCount = (STANZA_TEMPLATE.match(/```/g) ?? []).length;
+      expect(fenceCount).toBeGreaterThanOrEqual(2);
+    });
+
+    it('STANZA_TEMPLATE defines MUST, SHOULD, MAY, and [semantic]', () => {
+      expect(STANZA_TEMPLATE).toContain('MUST');
+      expect(STANZA_TEMPLATE).toContain('SHOULD');
+      expect(STANZA_TEMPLATE).toContain('MAY');
+      expect(STANZA_TEMPLATE).toContain('[semantic]');
+      expect(STANZA_TEMPLATE).toContain('### RFC 2119 keywords');
+    });
+
+    it('STANZA_TEMPLATE contains edit-vs-new guidance', () => {
+      expect(STANZA_TEMPLATE).toContain('When a new TNL file is justified');
+    });
+
+    it('AGENTS.md carries the identical schema block after --agent codex', () => {
+      const cap = capture();
+      runInit({ cwd, agent: 'codex', ...cap.opts });
+      const agentsMd = readFileSync(join(cwd, 'AGENTS.md'), 'utf8');
+      expect(agentsMd).toContain('### TNL format');
+      expect(agentsMd).toContain('### RFC 2119 keywords');
+      expect(agentsMd).toContain('When a new TNL file is justified');
+      expect(agentsMd).toContain('inline in the chat reply');
+      expect(agentsMd).not.toContain('before writing code');
+    });
+
+    it('GEMINI.md carries the identical schema block after --agent gemini', () => {
+      const cap = capture();
+      runInit({ cwd, agent: 'gemini', ...cap.opts });
+      const geminiMd = readFileSync(join(cwd, 'GEMINI.md'), 'utf8');
+      expect(geminiMd).toContain('### TNL format');
+      expect(geminiMd).toContain('### RFC 2119 keywords');
+      expect(geminiMd).toContain('When a new TNL file is justified');
+      expect(geminiMd).toContain('inline in the chat reply');
+      expect(geminiMd).not.toContain('before writing code');
+    });
+
+    it('TNL_FEATURE_SKILL_TEMPLATE contains anti-file-write phrasing in propose section', () => {
+      expect(TNL_FEATURE_SKILL_TEMPLATE).toContain('inline in the chat reply');
+    });
+
+    it('TNL_FEATURE_SKILL_TEMPLATE has a ## 5 Save heading after ## 4 Wait', () => {
+      const waitIdx = TNL_FEATURE_SKILL_TEMPLATE.indexOf('## 4. Wait');
+      const saveIdx = TNL_FEATURE_SKILL_TEMPLATE.indexOf('## 5. Save');
+      expect(waitIdx).toBeGreaterThan(-1);
+      expect(saveIdx).toBeGreaterThan(waitIdx);
+      expect(TNL_FEATURE_SKILL_TEMPLATE).toContain('`tnl/<slug>.tnl`');
+    });
+
+    it('TNL_FEATURE_SKILL_TEMPLATE does NOT contain "before writing code"', () => {
+      expect(TNL_FEATURE_SKILL_TEMPLATE).not.toContain('before writing code');
     });
   });
 });
