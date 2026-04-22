@@ -1,0 +1,52 @@
+id: format-spec
+title: TNL file format specification document
+scope: feature
+owners: [@jana]
+paths: [docs/tnl-format.md]
+surfaces: [docs/tnl-format.md]
+dependencies: [parser, resolve, verify]
+
+intent:
+  `docs/tnl-format.md` is the adopter-facing authoritative reference
+  for the TNL file format. It describes every field the parser
+  recognizes, how clauses are classified, what the sidecar contains,
+  and how the verifier interprets each classification. Deferred from
+  A1 so the doc reflects the parser's actual shipped behavior rather
+  than its intent.
+
+behaviors:
+  - `docs/tnl-format.md` MUST exist and be written in markdown.
+  - The doc MUST contain section headings covering, in order: Overview; File layout; Machine zone fields; Contract zone (behaviors); Clause classification; Human zone; Scope; Dependencies; Sidecar; Verification tiers; Edit-vs-new guidance; Examples.
+  - The Machine zone section MUST document each field (`id`, `title`, `scope`, `owners`, `paths`, `surfaces`, `dependencies`) including required-vs-optional status and the validation the parser applies.
+  - The Contract zone section MUST document RFC 2119 keywords (MUST, MUST NOT, SHOULD, SHOULD NOT, MAY) and the four clause classes: `structural`, `test-backed`, `semantic`, `advisory`.
+  - The Clause classification section MUST document the `[semantic]` prefix and the `[test: <file>::<name>]` prefix, and MUST state that the two prefixes are mutually exclusive (parser rejects a clause carrying both).
+  - The Sidecar section MUST document the on-disk shape of `tnl/.resolved/<id>.meta.json`: `unit_hash`, per-clause `id`/`hash`/`class`, optional `test: { file, name }` on `test-backed` clauses, `resolved_at`. MUST note that `resolved_at` is preserved byte-for-byte across runs when `unit_hash` is unchanged.
+  - The Verification tiers section MUST document tier 1 (paths-exist, dependencies-resolve) and tier 2 (literal-string search for `[test:]` name in the named file; no test execution). MUST note tier 3 is deferred.
+  - The Edit-vs-new section MUST name (a) when a new TNL is justified and (b) when to edit an existing one, matching the `CLAUDE.md` stanza's subsection.
+  - The Examples section MUST contain at least two complete TNL files as fenced code blocks: one `scope: feature` and one `scope: repo-wide`.
+  - Every fenced TNL code block in the doc MUST parse successfully via `parseTnl()` — a doc containing an unparseable example is broken.
+  - The doc MUST reference the parser entry point (`src/parser.ts`), the resolver (`src/resolver.ts`), and the verifier (`src/verifier.ts`) as cross-refs.
+  - Tests MUST cover: `docs/tnl-format.md` exists; each required section heading is present in order; every fenced-tnl code block extracts cleanly and parses via `parseTnl()` without error; the doc contains the strings "MUST", "SHOULD", "MAY", "[semantic]", "[test:", "structural", "test-backed", "semantic", "advisory".
+
+non-goals:
+  - A formal EBNF grammar — plain-English aligned with the parser's actual acceptance is clearer for adopters; EBNF can land post-v1 if needed.
+  - Describing tier 3 semantic verification in detail — tier 3 is deferred post-v1; the doc names it as a deferred extension only.
+  - Covering every MCP tool's wire schema — those live in the MCP SDK output; the doc only names the MCP integration.
+  - Migration guide from other contract formats — no prior format to migrate from.
+  - Comparison with alternative specs (RFC, OpenAPI, etc.) — the doc stands alone; comparative analysis belongs in a blog post, not a spec.
+
+rationale:
+  Why deferred from A1 to B5: writing the spec against a shipped
+  parser means every sentence can be verified against working code.
+  An A1 spec would describe intent, and drift by A7 would produce
+  a doc that doesn't match reality.
+
+  Why a `parseTnl()`-validity test on every fenced code block: keeps
+  the doc in lockstep with the parser. If the parser tightens a
+  check or renames a field, an outdated example in the doc fails
+  the test and forces the fix.
+
+  Why a single `docs/` directory rather than a dedicated docs site:
+  single-file reference is easier to grep, less moving machinery,
+  sufficient for v1. A docs site is a release decision once adopter
+  feedback says it's needed.
