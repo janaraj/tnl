@@ -7,7 +7,7 @@ surfaces: [npm publish]
 dependencies: [cli-skeleton, mcp-skeleton]
 
 intent:
-  Governs the npm-publishable shape of the `@tnl/cli` package: which
+  Governs the npm-publishable shape of the `@typed-nl/cli` package: which
   fields `package.json` MUST carry, which files get bundled into the
   tarball, and which get excluded. The package ships the `tnl` CLI
   and `tnl-mcp-server` bins as a single publishable unit (see
@@ -17,7 +17,7 @@ intent:
 behaviors:
   - `package.json` MUST have `"private"` unset or `false` — the package is publishable.
   - `package.json` MUST declare the following fields with non-empty values: `name`, `version`, `description`, `type`, `bin`, `engines.node`, `license`, `repository`, `homepage`, `bugs`, `keywords`, `author`, `publishConfig.access`.
-  - `package.json` MUST declare `"publishConfig": { "access": "public" }` because `@tnl/cli` is a scoped package and scoped packages default to private access on first publish without this override.
+  - `package.json` MUST declare `"publishConfig": { "access": "public" }` because `@typed-nl/cli` is a scoped package and scoped packages default to private access on first publish without this override.
   - `package.json` MUST declare a `"files"` allowlist that includes exactly: `dist/`, `LICENSE`, `README.md`. The allowlist MUST NOT include `src/`, `tests/`, `tnl/`, `internal_docs/`, `node_modules/`, `behavioral-tests/`, `evals/`, or tarball-polluting root files. `package.json` itself is always included by npm regardless of the allowlist.
   - The repo MUST NOT contain a `.npmignore` file at the root — the `files` allowlist is the single source of truth for what ships. If both exist npm uses `.npmignore`, which is error-prone; an allowlist makes the shipped contents auditable from `package.json` alone.
   - The `repository` field MUST be an object with `type: "git"` and `url` pointing to the public GitHub repo (`https://github.com/janaraj/tnl.git`).
@@ -44,7 +44,7 @@ rationale:
   for what ships.
 
   Why `publishConfig.access: public` explicit: scoped packages
-  (`@tnl/*`) default to private on first publish. Omitting this
+  (`@typed-nl/*`) default to private on first publish. Omitting this
   field means the first `npm publish` fails with a 402 unless the
   user remembers `--access public`. Making it a field is a
   config-not-convention preference.
@@ -54,7 +54,7 @@ rationale:
   who depend on specific shapes should pin. Post-B5 adoption feedback
   drives the 1.0.0 cut.
 
-  Why scoped `@tnl/cli` instead of unscoped `tnl`: `tnl` on npm is
+  Why scoped `@typed-nl/cli` instead of unscoped `tnl`: `tnl` on npm is
   taken (an unrelated ngrok tunnel tool from 2017). Scoping under
   `@tnl` claims the namespace cleanly. The `@tnl` npm org is created
   as a one-time manual step on npmjs.com before the first publish

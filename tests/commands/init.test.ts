@@ -291,7 +291,7 @@ describe('tnl init', () => {
     expect(parsed.hooks.PreToolUse).toHaveLength(1);
     expect(parsed.hooks.PreToolUse[0].matcher).toContain('Edit');
     expect(parsed.hooks.PreToolUse[0].hooks[0].command).toContain(
-      '@tnl/cli hook pre-tool-use',
+      '@typed-nl/cli hook pre-tool-use',
     );
   });
 
@@ -369,7 +369,7 @@ describe('tnl init', () => {
     const parsed = JSON.parse(readFileSync(path, 'utf8'));
     expect(parsed.mcpServers.tnl).toEqual({
       command: 'npx',
-      args: ['-y', '-p', '@tnl/cli', 'tnl-mcp-server'],
+      args: ['-y', '-p', '@typed-nl/cli', 'tnl-mcp-server'],
     });
   });
 
@@ -452,7 +452,7 @@ describe('tnl init', () => {
     const path = join(cwd, '.github', 'workflows', 'tnl-verify.yml');
     expect(existsSync(path)).toBe(true);
     const content = readFileSync(path, 'utf8');
-    expect(content).toContain('npx -y @tnl/cli verify');
+    expect(content).toContain('npx -y @typed-nl/cli verify');
     expect(content).toContain('push:');
     expect(content).toContain('pull_request:');
   });
@@ -590,7 +590,7 @@ describe('tnl init', () => {
     const parsed = JSON.parse(readFileSync(path, 'utf8'));
     expect(parsed.mcpServers.tnl).toEqual({
       command: 'npx',
-      args: ['-y', '-p', '@tnl/cli', 'tnl-mcp-server'],
+      args: ['-y', '-p', '@typed-nl/cli', 'tnl-mcp-server'],
     });
   });
 
@@ -704,7 +704,7 @@ describe('tnl init', () => {
     expect(existsSync(path)).toBe(true);
     const content = readFileSync(path, 'utf8');
     expect(content).toBe(
-      '[mcp_servers.tnl]\ncommand = "npx"\nargs = ["-y", "-p", "@tnl/cli", "tnl-mcp-server"]\n',
+      '[mcp_servers.tnl]\ncommand = "npx"\nargs = ["-y", "-p", "@typed-nl/cli", "tnl-mcp-server"]\n',
     );
   });
 

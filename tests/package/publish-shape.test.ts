@@ -18,7 +18,7 @@ describe('npm-publish-shape', () => {
   });
 
   it('has name, version, description, type, bin set', () => {
-    expect(pkg.name).toBe('@tnl/cli');
+    expect(pkg.name).toBe('@typed-nl/cli');
     expect(pkg.version).toBe('0.1.0');
     expect(pkg.description).toMatch(/TNL/);
     expect(pkg.type).toBe('module');

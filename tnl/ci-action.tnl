@@ -14,12 +14,12 @@ intent:
   fixed template embedded in the CLI.
 
 behaviors:
-  - `src/commands/init.ts` MUST contain a string constant `CI_WORKFLOW_TEMPLATE` whose body is a valid GitHub Actions YAML file. The workflow MUST trigger on both `push` and `pull_request`, check out the repo, set up Node (pinned to a specific major version, currently 20), and run `npx -y @tnl/cli verify` as its primary step.
+  - `src/commands/init.ts` MUST contain a string constant `CI_WORKFLOW_TEMPLATE` whose body is a valid GitHub Actions YAML file. The workflow MUST trigger on both `push` and `pull_request`, check out the repo, set up Node (pinned to a specific major version, currently 20), and run `npx -y @typed-nl/cli verify` as its primary step.
   - When `tnl init` runs (regardless of target agent or whether an agent is detected), init MUST write `<cwd>/.github/workflows/tnl-verify.yml` with `CI_WORKFLOW_TEMPLATE`. It MUST create `.github/workflows/` if absent.
   - If `.github/workflows/tnl-verify.yml` already exists, init MUST leave the file untouched and report the skip. No merging — the file is treated as opaque once present, preserving any user customizations.
-  - This installation step MAY be suppressed by `tnl init`'s `--no-ci` or `--minimal` opt-out flag (defined in `cli-init.tnl`). When suppressed, the step is skipped and the summary reports `.github/workflows/tnl-verify.yml` under `Skipped (opt-out)` rather than `Created` or `Skipped (already present)`. `--local-install` also suppresses this step, since the workflow references `npx -y @tnl/cli` which doesn't resolve against a local checkout.
+  - This installation step MAY be suppressed by `tnl init`'s `--no-ci` or `--minimal` opt-out flag (defined in `cli-init.tnl`). When suppressed, the step is skipped and the summary reports `.github/workflows/tnl-verify.yml` under `Skipped (opt-out)` rather than `Created` or `Skipped (already present)`. `--local-install` also suppresses this step, since the workflow references `npx -y @typed-nl/cli` which doesn't resolve against a local checkout.
   - The end-of-run summary MUST include the workflow path in `Created` or `Skipped (already present)`.
-  - Tests MUST cover: the workflow file is written when init runs on an empty cwd; `.github/workflows/` directory auto-created; existing file → skipped and reported; summary includes the workflow path on first run; the written content contains `npx -y @tnl/cli verify` and triggers on `push` / `pull_request`; the workflow is written regardless of target agent (tested across `--agent claude`, `--agent codex`, and no-agent-detected cases).
+  - Tests MUST cover: the workflow file is written when init runs on an empty cwd; `.github/workflows/` directory auto-created; existing file → skipped and reported; summary includes the workflow path on first run; the written content contains `npx -y @typed-nl/cli verify` and triggers on `push` / `pull_request`; the workflow is written regardless of target agent (tested across `--agent claude`, `--agent codex`, and no-agent-detected cases).
 
 non-goals:
   - Workflow generators for other CI systems (GitLab CI, CircleCI, Jenkins) — deferred.
@@ -42,6 +42,6 @@ rationale:
   Merging risks breaking customizations. Skip-on-exists preserves
   user edits.
 
-  Why `npx -y @tnl/cli verify` rather than a globally-installed
+  Why `npx -y @typed-nl/cli verify` rather than a globally-installed
   `tnl`: CI runners start clean. `npx -y` fetches on demand without
   adding a separate install step.

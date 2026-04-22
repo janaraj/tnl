@@ -29,8 +29,8 @@ behaviors:
   - When one or more feature TNLs remain, the handler MUST read each TNL's source file and emit a single JSON object on stdout with shape `{ hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: <string> } }`. `<string>` MUST start with a short header line, then for each impacted TNL include a delimiter line `--- <id> (feature) — <sourcePath> ---` followed by the verbatim TNL content and a blank line.
   - The handler MUST exit 0 on all paths. A failed read for one TNL MUST skip that TNL and continue with the others; if every read fails, the handler MUST exit 0 with no stdout.
   - The handler MUST NOT write to stderr during any defined path above. stderr is reserved for future failure modes; writing there surfaces as a visible Claude Code hook error.
-  - When `tnl init` determines Claude is a target agent, init MUST write or merge `<cwd>/.claude/settings.json` to register a `PreToolUse` hook matching `Edit|Write|MultiEdit` whose command runs `npx @tnl/cli hook pre-tool-use` (or `node <abs>/dist/index.js hook pre-tool-use` when `cli-init.tnl`'s `--local-install` flag is set).
-  - The settings merge MUST be idempotent: if the raw text of the existing `.claude/settings.json` contains the full hook command string (`npx @tnl/cli hook pre-tool-use`), init MUST leave the file untouched and report the skip.
+  - When `tnl init` determines Claude is a target agent, init MUST write or merge `<cwd>/.claude/settings.json` to register a `PreToolUse` hook matching `Edit|Write|MultiEdit` whose command runs `npx @typed-nl/cli hook pre-tool-use` (or `node <abs>/dist/index.js hook pre-tool-use` when `cli-init.tnl`'s `--local-install` flag is set).
+  - The settings merge MUST be idempotent: if the raw text of the existing `.claude/settings.json` contains the full hook command string (`npx @typed-nl/cli hook pre-tool-use`), init MUST leave the file untouched and report the skip.
   - When `.claude/settings.json` does not exist, init MUST create it with a single `hooks.PreToolUse` entry for the TNL hook. When it exists and is valid JSON, init MUST preserve every pre-existing field and add only the TNL hook entry to `hooks.PreToolUse`.
   - If `.claude/settings.json` exists but is not valid JSON, init MUST emit a warning (to stderr AND the summary warnings list) naming the file and MUST skip the merge; the existing file MUST NOT be overwritten.
   - The hook MUST NOT be registered for non-Claude agents. When `--agent codex` or `--agent gemini` is the only target, init MUST NOT create or modify `.claude/settings.json`.
@@ -61,7 +61,7 @@ rationale:
   edit adds noise without adding signal. Feature TNLs are the
   edit-specific contracts the agent needs to see.
 
-  Why `npx @tnl/cli hook pre-tool-use` rather than bare `tnl`: `npx`
+  Why `npx @typed-nl/cli hook pre-tool-use` rather than bare `tnl`: `npx`
   resolves the package whether the user installed globally,
   locally, or runs from a clean shell. Bare `tnl` needs the user
   to have configured PATH.
@@ -69,7 +69,7 @@ rationale:
   Why substring match on the raw settings.json text for idempotency:
   JSON has no comments, sentinel fields risk being stripped by other
   tools, and searching the whole text is cheaper than deep-walking
-  the parsed object. The full command `npx @tnl/cli hook pre-tool-use`
+  the parsed object. The full command `npx @typed-nl/cli hook pre-tool-use`
   is stable and unambiguous — shorter substrings like
   `tnl hook pre-tool-use` get broken up by package-name separators
-  (the literal `@tnl/cli` interrupts the match).
+  (the literal `@typed-nl/cli` interrupts the match).

@@ -3,7 +3,7 @@
 Structured English contracts for agent-written code. Describe features as reviewable specs, then have your coding agent implement against them.
 
 ```bash
-npx -y @tnl/cli init
+npx -y @typed-nl/cli init
 ```
 
 ---
@@ -60,10 +60,10 @@ TNL shifts the contract from "transient prompt" to "durable file":
 
 ```bash
 # One-off, no install
-npx -y @tnl/cli <command>
+npx -y @typed-nl/cli <command>
 
 # Or install globally
-npm install -g @tnl/cli
+npm install -g @typed-nl/cli
 tnl <command>
 ```
 
@@ -77,7 +77,7 @@ Begin with just the baseline TNL scaffold — no MCP, no hooks, no CI. The agent
 
 ```bash
 cd /path/to/your/repo
-npx -y @tnl/cli init --agent claude --minimal
+npx -y @typed-nl/cli init --agent claude --minimal
 ```
 
 This writes only:
@@ -103,7 +103,7 @@ Start a Claude Code (or Codex / Gemini) session and ask for any feature. The age
 ### 3. Verify
 
 ```bash
-npx -y @tnl/cli verify
+npx -y @typed-nl/cli verify
 ```
 
 Runs **tier 1** (paths and dependencies exist) and **tier 2** (test-binding integrity — each `[test:]` annotation names a test that still exists). Exits 2 on any failure; CI uses this gate.
@@ -114,16 +114,16 @@ You can always re-run `tnl init` to layer on more. Each step is independent and 
 
 ```bash
 # Full install: MCP server + PreToolUse hook + CI workflow
-npx -y @tnl/cli init --agent claude
+npx -y @typed-nl/cli init --agent claude
 
 # Everything except CI
-npx -y @tnl/cli init --agent claude --no-ci
+npx -y @typed-nl/cli init --agent claude --no-ci
 
 # Everything except the PreToolUse hook
-npx -y @tnl/cli init --agent claude --no-hook
+npx -y @typed-nl/cli init --agent claude --no-hook
 
 # Claude only: add the /tnl-feature slash command
-npx -y @tnl/cli init --agent claude --with-skill
+npx -y @typed-nl/cli init --agent claude --with-skill
 ```
 
 What each capability gives you:
@@ -198,7 +198,7 @@ Without `--agent`, init auto-detects targets (`.claude/` → Claude; `AGENTS.md`
 Running MCP manually:
 
 ```bash
-npx -y -p @tnl/cli tnl-mcp-server   # stdio JSON-RPC server
+npx -y -p @typed-nl/cli tnl-mcp-server   # stdio JSON-RPC server
 ```
 
 ---

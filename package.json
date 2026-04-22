@@ -1,5 +1,5 @@
 {
-  "name": "@tnl/cli",
+  "name": "@typed-nl/cli",
   "version": "0.1.0",
   "description": "TNL — Typed Natural Language: structured English contracts for coding agents. CLI + MCP server + layered verifier.",
   "type": "module",

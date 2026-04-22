@@ -208,13 +208,13 @@ interface InstallTemplates {
 }
 
 const DEFAULT_TEMPLATES: InstallTemplates = {
-  hookCommand: 'npx @tnl/cli hook pre-tool-use',
+  hookCommand: 'npx @typed-nl/cli hook pre-tool-use',
   mcpServerEntry: {
     command: 'npx',
-    args: ['-y', '-p', '@tnl/cli', 'tnl-mcp-server'],
+    args: ['-y', '-p', '@typed-nl/cli', 'tnl-mcp-server'],
   },
   codexBlock:
-    '[mcp_servers.tnl]\ncommand = "npx"\nargs = ["-y", "-p", "@tnl/cli", "tnl-mcp-server"]\n',
+    '[mcp_servers.tnl]\ncommand = "npx"\nargs = ["-y", "-p", "@typed-nl/cli", "tnl-mcp-server"]\n',
 };
 
 function findPackageRoot(): string {
@@ -434,7 +434,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: npx -y @tnl/cli verify
+      - run: npx -y @typed-nl/cli verify
 `;
 
 function installCiWorkflow(
