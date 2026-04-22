@@ -13,10 +13,20 @@ tnl/.staging/
 # Claude Code per-user settings (shared skill stays committed)
 .claude/settings.local.json
 
-# Internal design/planning docs — not part of the public OSS repo
-internal_docs/
+# Internal design/planning docs — keep only the keylo eval report public
+internal_docs/*
+!internal_docs/keylo-evaluation-report.md
 
-# Eval and behavioral-test workspaces — per-session artifacts, not publishable
-behavioral-tests/
-evals/
+# Evals — ignore configs and transient JSON; keep polished writeups + generic scripts
+evals/*-config.json
+evals/*-scorecard.json
+evals/triggers-round1-snapshot.json
+
+# Behavioral tests — ignore runners (hardcoded paths), results, caches, older runs
+behavioral-tests/v2/
+behavioral-tests/triggers/run_*.py
+behavioral-tests/triggers/_core*.py
+behavioral-tests/triggers/make_matrix.py
+behavioral-tests/triggers/results/
+behavioral-tests/triggers/__pycache__/
 

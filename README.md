@@ -1,6 +1,6 @@
 # TNL — Typed Natural Language
 
-Structured English contracts for agent-written code. Describe features as reviewable specs, then have your coding agent implement against them.
+Structured English contracts for coding agents. A short file per feature, reviewed before code lands, kept as durable context for every future session.
 
 ```bash
 npx -y @typed-nl/cli init
@@ -8,17 +8,47 @@ npx -y @typed-nl/cli init
 
 ---
 
-## What is TNL?
+## The two ideas this builds on
 
-TNL (Typed Natural Language) is a **contract format** for features in agent-written codebases. A TNL file is a short, structured English document that describes one behavioral surface — a CLI command, an MCP tool, a route handler, a workflow — with machine-readable metadata and human-readable clauses.
+Andrej Karpathy wrote two things worth stealing:
 
-A TNL file has three zones:
+- [**"Agents make wrong assumptions silently"**](https://x.com/karpathy/status/2015883857489522876) — coding agents don't manage confusion, don't seek clarification, don't surface tradeoffs. Good prompting norms help, but they're vibes, not gates.
+- [**"The LLM is the programmer, the wiki is the codebase"**](https://x.com/karpathy/status/2039805659525644595) — structured Markdown the model can reason over directly beats fuzzy RAG for mid-sized bodies of knowledge.
 
-- **Machine zone** — `id`, `scope`, `paths`, `surfaces`, `dependencies`. Metadata the tool reads.
-- **Contract zone** — `behaviors` with RFC 2119 keywords (MUST / SHOULD / MAY) and the `[semantic]` / `[test: file::name]` clause prefixes.
-- **Human zone** — `intent`, `non-goals`, `rationale`. The "why" for future readers.
+TNL combines the two: **a short per-feature contract, reviewed before any code lands, that sticks around as the feature's durable knowledge base for every future session.**
 
-A minimal example:
+## What TNL adds on top
+
+- **Mechanical enforcement.** The agent outputs a typed contract; you approve; it maps every MUST clause to code or tests. Not a norm — a gate.
+- **Scope fence.** `paths:` declares which files are in play. Anything outside is flagged.
+- **Machine checks.** `tnl verify` confirms paths exist, tests still resolve, clauses haven't drifted.
+- **Cross-session persistence.** The approved contract stays as `tnl/<slug>.tnl`. Future sessions inherit the intent instead of re-reading the code.
+
+## Think of it as plan mode, made durable
+
+If you've used **plan mode** in Claude Code, you know the shape: the agent proposes a plan, you review, you approve, then code lands. Plan mode works — but the plan is prose in chat, different every session, and gone when the session ends.
+
+TNL is that discipline tightened: a structured schema instead of freeform prose, saved to disk instead of lost to the session, and machine-verifiable where plan mode is trust-based.
+
+---
+
+## The workflow
+
+Every feature request — new or modification — runs through 7 steps:
+
+1. **Scope** — agent scans `tnl/` for files whose `paths:` overlap the request. If one exists, the output is an *edit*; if not, a *new* TNL.
+2. **Clarify** — ambiguous request? Agent asks questions before proposing anything.
+3. **Propose** — agent outputs the full TNL content inline in chat. Nothing on disk yet.
+4. **Wait for approval** — you review, push back, approve. Nothing is written until you say go.
+5. **Save** — agent writes the approved TNL to `tnl/<slug>.tnl`.
+6. **Implement** — agent writes code + tests against the contract. `paths:` is the scope fence.
+7. **Self-attest** — agent lists every MUST clause and where it was satisfied. Silent omission counts as a miss.
+
+For follow-up work, step 1 returns "edit the existing TNL" — and the next session reads the already-approved contract as context, rather than rediscovering design decisions from the code.
+
+---
+
+## A TNL file looks like this
 
 ```
 id: user-rate-limiter
@@ -35,7 +65,7 @@ intent:
 behaviors:
   - The middleware MUST track request counts per user in a sliding window of 60 seconds.
   - When a user exceeds 60 requests in the window, the middleware MUST return HTTP 429.
-  - [test: tests/rate_limit.test.ts::returns_429_on_exceeded] The 429 response MUST include a `Retry-After` header with the seconds until window reset.
+  - [test: tests/rate_limit.test.ts::returns_429_on_exceeded] The 429 response MUST include a `Retry-After` header.
   - [semantic] The middleware SHOULD log the user ID and request path on every 429, without leaking the request body.
 
 non-goals:
@@ -43,16 +73,31 @@ non-goals:
   - Distributed rate state — in-memory per instance for now.
 ```
 
-## Why TNL?
+Three zones: **machine** (`id`, `paths`, `surfaces`), **contract** (`behaviors` with RFC 2119 keywords and `[semantic]` / `[test: …]` prefixes), **human** (`intent`, `non-goals`, `rationale`).
 
-Coding agents work best when they have a concrete target. Freeform prompts produce freeform results: different sessions interpret the same request differently, forget constraints, silently expand scope. CLAUDE.md-style guidance helps but can be skipped under session pressure.
+---
 
-TNL shifts the contract from "transient prompt" to "durable file":
+## Does it actually work?
 
-- **Reviewable.** The TNL is proposed before any code. You review it, push back, approve. Then code.
-- **Verifiable.** `tnl verify` checks structural invariants: paths exist, dependencies resolve, declared tests still exist in the named files.
-- **Discoverable.** The MCP server exposes TNL retrieval, proposal, and verification as tools your agent reaches for naturally.
-- **Dogfooded.** This repository's own 23 features are each governed by a TNL in [`tnl/`](./tnl).
+We ran a controlled A/B. The baseline condition uses four working principles — think before coding, simplicity first, surgical edits, goal-driven — written as prose in the project's CLAUDE.md / AGENTS.md. Same agent, same project context, same principles; only the contract step is missing. 3 tasks, 2 agents, 3 codebases.
+
+Headline task: add event-driven triggers to a 16KLOC Python codebase (35 behavioural scenarios covering config, cycle prevention, cron coexistence, CLI surfaces).
+
+| Agent | TNL passing | Baseline passing | Gap |
+|---|---:|---:|---:|
+| Claude Code Opus 4.7 (n=2) | **35/35, 31/35** (89–100 %) | 29/35, 27/35 (77–83 %) | +5 to +8 |
+| Codex GPT-5.4 high (n=1) | **32/35** (91 %) | 26/35 (74 %) | +6 |
+
+Across all 3 tasks (TypeScript + Python, Claude + Codex), **TNL never lost on functional completeness**. No cell overlap between TNL's band (86–100 %) and baseline's (57–83 %).
+
+Other signals:
+- **Consistency is tighter under TNL.** MUST-clause count on the same task lands 15/16/17 across three independent runs. Baseline's scope-creep file count ranges 2–4.
+- **Cost is within noise of baseline.** Across 5 paired runs: TNL cheaper in 2, baseline cheaper in 3. No consistent "TNL tax."
+- **Follow-up work reused the contract.** Both TNL agents edited the existing TNL file for a round-2 task; no new file was created. The baseline agent had to re-read code.
+
+**Caveats up front.** n is 1–2 per cell, LLM sessions are noisy, and we built the tool. Every script, prompt, raw JSON, and session transcript is committed so you can rerun anything.
+
+**[Full eval report →](evals/full-eval.md)**
 
 ---
 
@@ -134,24 +179,6 @@ What each capability gives you:
 | PreToolUse hook | yes (Claude) | `.claude/settings.json` hook auto-injects impacted TNLs as context on every `Edit` / `Write`. |
 | CI workflow | yes | `.github/workflows/tnl-verify.yml` runs `tnl verify` on push + PR. |
 | `/tnl-feature` skill | no (opt-in via `--with-skill`) | Claude Code slash command for explicit invocation. |
-
----
-
-## The TNL workflow
-
-Every feature request — new or modification — runs through the same cycle:
-
-| Step | What happens | Output |
-|---|---|---|
-| 1. Scope | Find existing TNLs with overlapping `paths:` or `surfaces:` | Edit-or-new decision |
-| 2. Clarify | Agent asks structured questions if interpretation is ambiguous | Shared understanding |
-| 3. Propose | Agent drafts a TNL inline in chat | Reviewable spec |
-| 4. Approve | You review, revise, approve | Contract |
-| 5. Save | TNL is written to `tnl/<slug>.tnl` | Durable artifact |
-| 6. Implement | Agent writes code + tests against the TNL | Code |
-| 7. Self-attest | Agent lists each MUST clause → where it was satisfied | Receipts |
-
-Property changes to existing features are **edits** to their TNL, not new files. Genuinely new behavioral surfaces warrant a new TNL.
 
 ---
 
