@@ -13,3 +13,10 @@ tnl/.staging/
 # Claude Code per-user settings (shared skill stays committed)
 .claude/settings.local.json
 
+# Internal design/planning docs — not part of the public OSS repo
+internal_docs/
+
+# Eval and behavioral-test workspaces — per-session artifacts, not publishable
+behavioral-tests/
+evals/
+

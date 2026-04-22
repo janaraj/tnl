@@ -4,7 +4,7 @@ Guidance for Claude Code sessions in this repository.
 
 ## About this project
 
-This repository is the **TNL (Typed Natural Language) tool itself**: a CLI, an MCP server, and a layered verifier. TNL is a structured English contract format for describing features in agent-written codebases. See [README.md](./README.md) for the stack and layout, and [`internal_docs/tnl-implementation-v1.md`](./internal_docs/tnl-implementation-v1.md) for the design spec.
+This repository is the **TNL (Typed Natural Language) tool itself**: a CLI, an MCP server, and a layered verifier. TNL is a structured English contract format for describing features in agent-written codebases. See [README.md](./README.md) for the stack and layout.
 
 The repository is **dogfooded**: every feature of the TNL tool is described in a `tnl/*.tnl` file, reviewed, approved, and only then implemented. This directory's [`tnl/`](./tnl/) contains self-referential contracts governing the tool's own development.
 
@@ -16,7 +16,7 @@ The `tnl` CLI, MCP server, and verifier are **being built** in this repository. 
 
 ## This repository uses TNL
 
-TNL is the structured English contract format described in the internal docs. For every new feature, the agent writes a TNL file **before** implementing code, the user reviews and approves the TNL, and the agent then implements against the approved TNL.
+TNL is the structured English contract format described below and in [`tnl/workflow.tnl`](./tnl/workflow.tnl). For every new feature, the agent writes a TNL file **before** implementing code, the user reviews and approves the TNL, and the agent then implements against the approved TNL.
 
 TNL files live in [`tnl/`](./tnl/). The top-level workflow principles live in [`tnl/workflow.tnl`](./tnl/workflow.tnl) and apply to every session.
 
