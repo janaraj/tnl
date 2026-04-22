@@ -1,12 +1,39 @@
 {
   "name": "@tnl/cli",
-  "version": "0.0.1",
-  "description": "TNL — Typed Natural Language: structured English contracts for coding agents.",
+  "version": "0.1.0",
+  "description": "TNL — Typed Natural Language: structured English contracts for coding agents. CLI + MCP server + layered verifier.",
   "type": "module",
-  "private": true,
+  "author": "Janarthanan Rajendran <janaraj84@gmail.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/janaraj/tnl#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/janaraj/tnl.git"
+  },
+  "bugs": {
+    "url": "https://github.com/janaraj/tnl/issues"
+  },
+  "keywords": [
+    "tnl",
+    "typed-natural-language",
+    "agent",
+    "claude-code",
+    "mcp",
+    "contracts",
+    "coding-agent",
+    "specification"
+  ],
   "bin": {
     "tnl": "./dist/index.js",
     "tnl-mcp-server": "./dist/mcp/server.js"
+  },
+  "files": [
+    "dist/",
+    "LICENSE",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",

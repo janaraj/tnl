@@ -1,0 +1,61 @@
+id: npm-publish-shape
+title: npm package shape for public publish
+scope: feature
+owners: [@jana]
+paths: [package.json]
+surfaces: [npm publish]
+dependencies: [cli-skeleton, mcp-skeleton]
+
+intent:
+  Governs the npm-publishable shape of the `@tnl/cli` package: which
+  fields `package.json` MUST carry, which files get bundled into the
+  tarball, and which get excluded. The package ships the `tnl` CLI
+  and `tnl-mcp-server` bins as a single publishable unit (see
+  `mcp-auto-register.tnl` rationale). This TNL is the contract
+  between the repo state and what adopters get from `npm install`.
+
+behaviors:
+  - `package.json` MUST have `"private"` unset or `false` — the package is publishable.
+  - `package.json` MUST declare the following fields with non-empty values: `name`, `version`, `description`, `type`, `bin`, `engines.node`, `license`, `repository`, `homepage`, `bugs`, `keywords`, `author`, `publishConfig.access`.
+  - `package.json` MUST declare `"publishConfig": { "access": "public" }` because `@tnl/cli` is a scoped package and scoped packages default to private access on first publish without this override.
+  - `package.json` MUST declare a `"files"` allowlist that includes exactly: `dist/`, `LICENSE`, `README.md`. The allowlist MUST NOT include `src/`, `tests/`, `tnl/`, `internal_docs/`, `node_modules/`, `behavioral-tests/`, `evals/`, or tarball-polluting root files. `package.json` itself is always included by npm regardless of the allowlist.
+  - The repo MUST NOT contain a `.npmignore` file at the root — the `files` allowlist is the single source of truth for what ships. If both exist npm uses `.npmignore`, which is error-prone; an allowlist makes the shipped contents auditable from `package.json` alone.
+  - The `repository` field MUST be an object with `type: "git"` and `url` pointing to the public GitHub repo (`https://github.com/janaraj/tnl.git`).
+  - `keywords` MUST include at least: `tnl`, `typed-natural-language`, `agent`, `claude-code`, `mcp`, `contracts`. These are the terms adopters search npm for.
+  - The version MUST follow semver; the first public release MUST be `0.1.0` (preview — public but pre-1.0 API stability). Prior `0.0.1` is the unpublished scaffolding version.
+  - `license` MUST be `"MIT"`, matching the repo root `LICENSE` file. The `LICENSE` file MUST continue to be present at the repo root (npm includes it automatically, and the `files` allowlist also names it explicitly).
+  - Tests MUST cover: `package.json` is valid JSON and parses; all MUST-required fields are present and non-empty; `files` allowlist is exactly `['dist/', 'LICENSE', 'README.md']`; `publishConfig.access` is `"public"`; `private` is absent or `false`; no `.npmignore` exists at the repo root; `keywords` array contains each of the required terms; `license` is `"MIT"`; `repository.url` points at the `janaraj/tnl` GitHub repo; `version` is `0.1.0`.
+
+non-goals:
+  - CI-driven publish automation (`workflow_dispatch` release job) — deferred.
+  - Signed commits / provenance via `--provenance` — strong candidate for a follow-up TNL once first publish stabilizes.
+  - Multi-tag release channels (`latest`, `next`, `canary`) — first publish uses default `latest`.
+  - Changelog generation — a plain `CHANGELOG.md` is a SHOULD, not a MUST; format is author-chosen.
+  - Dual CJS/ESM publish — package is ESM-only (matches `"type": "module"` and existing build config).
+  - Minimum Node version bump below current floor (Node 20). Raising it later is fine; lowering is out of scope.
+  - Automated `npm publish` from tests — publishing is a user-driven step. Tests verify shape, not execution.
+  - The npm org (`@tnl`) claim itself — that's a one-time manual step on npmjs.com before the first publish, not a file the TNL can enforce.
+
+rationale:
+  Why `files` allowlist, not `.npmignore`: deny-lists are easy to
+  forget. Every new top-level directory requires remembering to add
+  it to `.npmignore`; an allowlist defaults to "excluded unless
+  named," which is safer. Also makes `package.json` self-documenting
+  for what ships.
+
+  Why `publishConfig.access: public` explicit: scoped packages
+  (`@tnl/*`) default to private on first publish. Omitting this
+  field means the first `npm publish` fails with a 402 unless the
+  user remembers `--access public`. Making it a field is a
+  config-not-convention preference.
+
+  Why first version is `0.1.0`, not `1.0.0`: API stability isn't
+  committed yet. `0.x.y` signals "usable but may change"; adopters
+  who depend on specific shapes should pin. Post-B5 adoption feedback
+  drives the 1.0.0 cut.
+
+  Why scoped `@tnl/cli` instead of unscoped `tnl`: `tnl` on npm is
+  taken (an unrelated ngrok tunnel tool from 2017). Scoping under
+  `@tnl` claims the namespace cleanly. The `@tnl` npm org is created
+  as a one-time manual step on npmjs.com before the first publish
+  (free tier, unlimited public packages).
