@@ -1,0 +1,59 @@
+id: parser
+title: TNL file parser
+scope: feature
+owners: [@jana]
+paths: [src/parser.ts]
+
+intent:
+  Reads a `.tnl` file (from a string or filesystem path) and returns a
+  typed object representing its machine zone, contract zone, and human
+  zone. Performs structural validation (required sections, required
+  machine fields, scope/paths relationship, kebab-case id, filename
+  match) and surfaces malformed input as typed errors with line numbers.
+  The downstream resolver, verifier, MCP server, and impact analyzer all
+  consume this output.
+
+behaviors:
+  - The parser MUST expose `parseTnl(source: string, sourcePath?: string): TnlFile` that parses a document from a string and returns the typed object.
+  - The parser MUST expose `parseTnlFile(filePath: string): TnlFile` that reads a file from disk and delegates to `parseTnl(content, filePath)`.
+  - The parser MUST extract the following machine-zone fields: `id` (required), `title` (required), `scope` (required; exactly `repo-wide` or `feature`), `owners` (required, non-empty list), `paths` (list; required and non-empty iff scope is `feature`, forbidden iff scope is `repo-wide`), `surfaces` (optional list), `dependencies` (optional list).
+  - Machine-zone list fields MUST be parsed from single-line `[a, b, c]` bracket-and-comma syntax. Empty list `[]` MUST parse to an empty array.
+  - Unknown machine-zone field keys MUST raise a parse error naming the unknown field. Forward-compatibility for added fields is handled by updating this parser, not by silent tolerance.
+  - The `id` field MUST match `^[a-z][a-z0-9-]*$` (kebab-case; starts with a lowercase letter; lowercase letters, digits, and hyphens only). Any other value MUST raise a parse error.
+  - When a `sourcePath` is provided AND ends in `.tnl`, the parser MUST verify that the `id` matches the filename stem (basename with `.tnl` suffix stripped). Mismatches MUST raise a parse error.
+  - The parser MUST extract four contract/human-zone sections: `intent` (required, prose), `behaviors` (required, non-empty bulleted list), `non-goals` (optional, bulleted list), `rationale` (optional, free prose). Any other top-level section name MUST raise a parse error naming the unknown section.
+  - Missing a required section or a required machine field MUST raise a parse error that names the missing item.
+  - Each `behaviors` bullet MUST be parsed into a `Clause` with: full text (keywords and leading-prefix markers intact), 1-based source line number, a list of RFC 2119 keywords present (`MUST`, `MUST NOT`, `SHOULD`, `SHOULD NOT`, `MAY` — whole-word, uppercase only, deduplicated, in order of first textual appearance), a boolean `semantic` flag that is true iff the body begins with the literal prefix `[semantic]`, and a `testBinding: { file: string; name: string } | undefined` field populated iff the body begins with a leading `[test: <file>::<name>]` prefix.
+  - The `[test: ...]` leading prefix MUST match the shape `[test: <file>::<name>]` where `<file>` is a non-empty sequence of characters not containing `::` or `]`, and `<name>` is a non-empty sequence of characters not containing `]`. A clause that starts with `[test:` but fails to match this shape MUST raise a `TnlParseError` naming the clause line, rather than being silently ignored.
+  - A clause MUST NOT carry both a `[semantic]` prefix and a `[test: ...]` prefix. If both are detected as leading prefixes on the same clause, the parser MUST raise a `TnlParseError` with message "clause cannot combine [semantic] and [test: ...]; split into two clauses" and the clause's line number.
+  - RFC 2119 keyword scanning MUST match `MUST NOT` before `MUST` and `SHOULD NOT` before `SHOULD` so that a `MUST NOT` occurrence is never also counted as a `MUST`, and likewise for `SHOULD NOT`.
+  - `non-goals` bullets MUST be returned as plain strings; no keyword classification is performed on them.
+  - The parser MUST support `#`-to-end-of-line comments on any line. Comments MUST be stripped before structural parsing; a line that becomes empty after stripping MUST be treated as blank.
+  - The parser MUST accept both LF and CRLF line endings.
+  - Parse errors MUST be instances of a named `TnlParseError` class, carrying a `line` number (0 for whole-file errors) and a human-readable `message`; the message MUST include the line number when non-zero.
+  - The parser MUST NOT introduce any runtime dependency beyond Node's standard library.
+  - Tests MUST cover: roundtrip parse of this repo's `tnl/workflow.tnl`, `tnl/cli-skeleton.tnl`, and `tnl/cli-init.tnl`; id/filename mismatch; invalid id format; missing required machine field (each of id, title, scope, owners); unknown machine-zone field; missing required section (intent, behaviors); scope `feature` without paths; scope `repo-wide` with paths; malformed bracket list; unknown top-level section; clause keyword extraction for each keyword and combinations; `[semantic]` prefix detection; `[test: ...]` prefix extraction populating `testBinding`; malformed `[test:` prefix (missing `::`, missing closing `]`, empty file, empty name) raises `TnlParseError`; a clause carrying both `[semantic]` and `[test: ...]` prefixes raises `TnlParseError` naming the line; a clause with only `[semantic]` still parses with `semantic: true` and `testBinding: undefined`; a clause with neither prefix yields `semantic: false` and `testBinding: undefined`; `#` comment stripping; CRLF line endings; `parseTnlFile` reads from disk.
+
+non-goals:
+  - Semantic validation of clause content (what a clause means). Parser extracts structure and tags only.
+  - The `structural` vs `test-backed` class label — resolver's job. Parser returns the raw keyword list plus the `semantic` flag and `testBinding` fields; the resolver derives the class from them.
+  - Sidecar generation, content hashing, clause-ID assignment — A2.
+  - Multi-line machine-field values. Single-line `[a, b, c]` only.
+  - English grammar parsing of clause bodies.
+  - Paragraph-level AST of `intent` or `rationale` prose. Lines are joined by newlines verbatim.
+
+rationale:
+  Why hand-rolled rather than a YAML or Markdown library: the TNL format
+  is narrow (three zones, a handful of top-level keys, bullets and
+  prose) and leans on structural conventions a general-purpose library
+  would mis-handle (bullets inside `rationale` are prose, not data).
+  Hand-rolled keeps the dep surface flat and error messages precise.
+
+  Why require `scope` explicitly rather than default to `feature`: every
+  existing TNL already writes it. An explicit declaration removes
+  ambiguity about path-matching behavior and forces the author to
+  decide whether the unit is repo-wide.
+
+  Why surface `id`-vs-filename mismatch at parse time: it's the single
+  most common drift source when renaming. Catching it in the parser
+  means downstream tools never see a mismatched pair.

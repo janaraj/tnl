@@ -1,0 +1,56 @@
+id: cli-init
+title: tnl init command
+scope: feature
+owners: [@jana]
+paths: [src/commands/init.ts, src/index.ts]
+surfaces: [tnl init]
+dependencies: [cli-skeleton]
+
+intent:
+  `tnl init` scaffolds TNL into the invoking project: creates the `tnl/`
+  directory, writes a starter `workflow.tnl` (the baseline six-clause
+  workflow), and appends a TNL-workflow stanza to each detected agent's
+  instruction file (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`). Config files,
+  MCP registration, hooks, and CI wiring land in later phases.
+
+behaviors:
+  - The command MUST be named `init` and MUST be registered against the default registry exposed by `src/cli.ts`. `src/index.ts` MUST import the command module so registration runs when the CLI boots.
+  - Running `tnl init` MUST create a `tnl/` subdirectory in the current working directory if one does not exist. An existing `tnl/` MUST NOT be treated as an error.
+  - The command MUST write `tnl/workflow.tnl` with the starter content if the file does not exist. An existing `tnl/workflow.tnl` MUST be left untouched and reported as skipped.
+  - The starter content for `tnl/workflow.tnl` MUST be the baseline six-clause workflow, embedded as a string template inside the CLI. When the baseline in this repository's own `tnl/workflow.tnl` evolves, the embedded template MUST be updated in the same change.
+  - Target agents MUST be determined by: (a) if `--agent <name>` is passed, use exactly that agent (overrides detection); (b) otherwise, detect every agent whose marker is present in the CWD — `.claude/` directory → claude, `AGENTS.md` file → codex, `GEMINI.md` file → gemini.
+  - Recognized `--agent` values MUST be exactly `claude`, `codex`, or `gemini`. Any other value MUST exit 2 with a message naming the allowed values.
+  - If `--agent` is not passed and no agent is detected, the command MUST still scaffold `tnl/` and `workflow.tnl`, skip the stanza step, print a warning telling the user how to add a stanza later via `tnl init --agent <name>`, and exit 0.
+  - For each target agent, the command MUST append a TNL-workflow stanza to the matching instruction file (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`), creating the file if it does not exist.
+  - The appended stanza MUST begin with a sentinel marker (HTML comment `<!-- tnl:workflow-stanza -->`). If that sentinel is already present in the target file, the command MUST leave the file untouched and report it as skipped.
+  - On success, the command MUST print a short summary listing created files, skipped files, and warnings, then exit 0.
+  - The command MUST NOT create `tnl/.resolved/` in A1 — that directory is owned by the A2 resolver.
+  - `tnl init` MUST accept the following boolean opt-out flags, any of which suppresses the corresponding installation step: `--no-ci` (skip `.github/workflows/tnl-verify.yml`), `--no-mcp` (skip `.mcp.json`), `--no-hook` (skip `.claude/settings.json` PreToolUse entry), `--no-skill` (skip `.claude/commands/tnl-feature.md`). The `tnl/` scaffold, `tnl/workflow.tnl`, and the instruction-file stanza MUST always be written regardless of these flags — they are the baseline "this project uses TNL" artifacts and suppressing them would make init a no-op.
+  - `tnl init` MUST accept `--minimal` as shorthand for `--no-ci --no-mcp --no-hook --no-skill`. When `--minimal` is combined with individual `--no-*` flags, the result is the union (all suppressions still apply).
+  - When an installation step is suppressed by a flag, the end-of-run summary MUST list it under a `Skipped (opt-out)` section, distinct from `Skipped (already present)` so the user can tell at a glance whether the skip was an idempotency hit or a flag-driven opt-out.
+  - Tests MUST cover: clean scaffold from an empty CWD; idempotency (second run writes nothing); unknown `--agent` value → exit 2; no detection + no flag → `tnl/` created, stanza skipped, warning printed, exit 0; `.claude/` detection writes `CLAUDE.md` stanza; appending to a pre-existing `AGENTS.md`; `GEMINI.md` detection; multiple detection (`.claude/` + `AGENTS.md`) writes both stanzas; `--agent` flag wins over detection (does not write stanzas for other detected agents); the embedded `WORKFLOW_TEMPLATE` constant parses via `parseTnl` and its behavior-clause texts match those of this repository's `tnl/workflow.tnl` (drift guard enforcing the lockstep clause above); `--minimal` alone suppresses CI, MCP, hook, and skill; individual `--no-ci` / `--no-mcp` / `--no-hook` / `--no-skill` each suppress only their target; `--minimal --no-hook` still works (union semantics); summary lists suppressed steps under `Skipped (opt-out)`; `tnl/` + `workflow.tnl` + CLAUDE.md stanza are always written regardless of flags.
+
+non-goals:
+  - `.tnl-config.yaml` — deferred to A2.
+  - `tnl/.resolved/` subdirectory — A2 resolver owns it.
+  - MCP server registration in agent configs — deferred to A3.
+  - `/tnl-feature` Claude Code skill — deferred to A6.
+  - Pre-commit hook installation — deferred.
+  - `--bootstrap-from-code` auto-generation flag — deferred.
+  - Interactive prompting — init is non-interactive in A1.
+  - Removing or moving previously appended stanzas.
+
+rationale:
+  Why append a stanza rather than own the instruction file: adopters
+  already have their own CLAUDE.md / AGENTS.md with project content.
+  Overwriting destroys their work. An append with a sentinel is
+  appendable, detectable on re-run, and user-removable.
+
+  Why embed the workflow.tnl content as a string constant rather than
+  bundle a template file: simpler for A1 with one template. When more
+  templates land (agent-specific stanzas, MCP config, etc.), we switch
+  to a bundled `templates/` directory.
+
+  Why `--agent` wins over detection rather than being additive: the
+  explicit flag is the user's override. If they pass `--agent claude`
+  in a repo with AGENTS.md, they are saying "just Claude this time."

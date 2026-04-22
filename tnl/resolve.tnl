@@ -1,0 +1,66 @@
+id: resolve
+title: tnl resolve — sidecar generation
+scope: feature
+owners: [@jana]
+paths: [src/resolver.ts, src/commands/resolve.ts, src/index.ts]
+surfaces: [tnl resolve]
+dependencies: [parser, cli-skeleton]
+
+intent:
+  `tnl resolve` reads `.tnl` files, classifies each clause, hashes the
+  unit and each clause, and writes a sidecar JSON file to
+  `tnl/.resolved/<id>.meta.json`. Downstream commands (verify, MCP
+  server, impact) consume the sidecar. The resolver is fully
+  deterministic — no LLM calls, no network.
+
+behaviors:
+  - The resolver module MUST expose `resolveTnlSource(source: string, sourcePath?: string, options?: ResolveOptions): Sidecar`, `resolveTnlFile(filePath: string, options?: ResolveOptions): Sidecar`, and a `classifyClause(clause: Clause): ClauseClass` function.
+  - The CLI MUST register a `resolve` subcommand via the default registry; `src/index.ts` MUST import the command module.
+  - When invoked as `tnl resolve <path>`, the command MUST resolve that single file.
+  - When invoked as `tnl resolve` with no path argument, the command MUST resolve every `.tnl` file directly under `./tnl/` (non-recursive).
+  - The command MUST write each sidecar to `./tnl/.resolved/<id>.meta.json`, creating `./tnl/.resolved/` if absent. The `<id>` MUST be the resolved TNL's `id` field (which the parser verifies matches the filename stem).
+  - The sidecar JSON MUST contain exactly three top-level fields: `unit_hash` (hex string), `resolved_at` (ISO 8601 timestamp), `clauses` (object keyed by clause ID).
+  - Each clause entry MUST have `hash` (hex string) and `class` (one of `structural`, `test-backed`, `semantic`, `advisory`). When the clause's class is `test-backed`, the entry MUST additionally carry a `test: { file: string; name: string }` object copied from the parser's `testBinding`. The `test` field MUST NOT appear on entries of any other class.
+  - Clause IDs MUST be `L-{N}` where N is the 1-based position of the clause within the `behaviors` section.
+  - Classification rules, checked in order: (a) if the clause's `testBinding` is defined, class MUST be `test-backed`; (b) else if the clause's `semantic` flag is true, class MUST be `semantic`; (c) else if its keyword list includes `MUST` or `MUST NOT`, class MUST be `structural`; (d) else if its keyword list includes `SHOULD`, `SHOULD NOT`, or `MAY`, class MUST be `advisory`; (e) else the resolver MUST raise an error naming the clause line — a clause with no classification basis is malformed. The parser enforces that `[semantic]` and `[test: ...]` cannot coexist on one clause, so rules (a) and (b) are mutually exclusive in practice.
+  - `unit_hash` MUST be the lowercase SHA-256 hex digest of the source after normalizing CRLF to LF and stripping trailing whitespace on each line.
+  - Clause `hash` MUST be the lowercase SHA-256 hex digest of the clause text after collapsing any run of whitespace to a single space and trimming both ends, so hashes are stable under whitespace reformatting.
+  - `resolved_at` MUST default to the current UTC time; the resolver MUST accept an injected `Date` via `ResolveOptions.now` for deterministic testing. When the command writes a sidecar and an existing sidecar file at the target path has the same `unit_hash` as the newly-computed value, the command MUST preserve the existing sidecar's `resolved_at` string rather than overwriting it with a new timestamp. Corrupted existing sidecars (unreadable or un-parseable JSON) MUST be overwritten normally.
+  - When no `tnl/` directory exists in the CLI's invocation CWD and no `<path>` arg was given, the command MUST print an error telling the user to run `tnl init` first and exit 2.
+  - On parse or resolve failure of an individual file in batch mode, the command MUST print the error and continue with the remaining files. The command MUST exit 2 at the end if any file failed.
+  - The resolver MUST NOT invoke an LLM, make network calls, or depend on any runtime package outside Node's standard library (`node:crypto` is stdlib and permitted).
+  - Tests MUST cover: `classifyClause` for each of the four output classes (`structural`, `test-backed`, `semantic`, `advisory`) and for a combination clause with multiple keywords; classification error on an unclassifiable clause; a clause with `testBinding` set classifies as `test-backed` and the sidecar entry carries the `test: { file, name }` object; a clause with `testBinding` AND a MUST keyword still classifies as `test-backed` (test-backed wins over structural); sidecar entries of class `structural` / `semantic` / `advisory` MUST NOT carry a `test` field; clause hash stability under whitespace reformatting; unit hash stability under CRLF-vs-LF and per-line trailing-whitespace variation; resolve of a minimal inline TNL; resolve of this repo's `tnl/workflow.tnl` round-trip; `tnl resolve <path>` single-file CLI; `tnl resolve` batch mode writing multiple sidecars; `.resolved/` auto-creation; exit 2 when no `tnl/` directory present; parse error on one file in batch leaves others unaffected and exits 2; second `tnl resolve` run on unchanged content preserves the sidecar's `resolved_at` byte-for-byte (no diff noise); content change triggers a fresh `resolved_at`; a corrupted existing sidecar is overwritten rather than preserved.
+
+non-goals:
+  - Verifier execution — A5.
+  - Per-clause `verify` and `evidence` fields on the sidecar — owned by the verifier (A5).
+  - A `manual` class — no author-facing syntax in A2.
+  - Cross-unit dependency graph resolution beyond what the parser records in the `dependencies:` field.
+  - Watch mode or incremental resolve.
+
+rationale:
+  Why collapse whitespace when hashing clauses: authors reformat sentences
+  (line breaks, trailing spaces) without intending to change meaning.
+  The clause hash is the identity — whitespace changes must not
+  invalidate it.
+
+  Why fold `MAY` into `advisory` rather than a distinct `permission`
+  class: the enforcement semantics are identical (report-only,
+  non-gating). A separate label buys nothing in v1 verifier behavior.
+
+  Why error on a clause with no keywords and no `[semantic]` prefix:
+  such a clause has no tool-actionable meaning. Forcing the author to
+  add either a keyword or a `[semantic]` prefix keeps the contract
+  precise.
+
+  Why positional `L-{N}` IDs with a separate `hash` field, rather than
+  hash-derived IDs: positional IDs match the sidecar example in
+  `tnl-implementation-v1.md` §3.5 and read cleanly in verifier error
+  messages. The separate `hash` field preserves identity across
+  whitespace reformatting.
+
+  Why `test-backed` wins over keyword-derived `structural` when both
+  apply: a clause that names a specific test carries the author's
+  explicit evidence pointer, which is the strongest signal of how the
+  clause should be verified. Keyword-based classification falls back
+  when no explicit pointer exists.

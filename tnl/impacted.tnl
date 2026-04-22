@@ -1,0 +1,49 @@
+id: impacted
+title: tnl impacted — path-to-unit mapping
+scope: feature
+owners: [@jana]
+paths: [src/impact.ts, src/commands/impacted.ts, src/index.ts]
+surfaces: [tnl impacted]
+dependencies: [parser, cli-skeleton]
+
+intent:
+  `tnl impacted <path>...` returns the TNL units whose declared `paths:`
+  overlap with any of the given code paths. `repo-wide` units are
+  always included. Matching is structural — no fuzzy strings or glob
+  patterns. Consumed by agents directly at the CLI and by the MCP
+  server (A3 wraps this as `get_impacted_tnls`).
+
+behaviors:
+  - The module MUST expose `getImpactedTnls(queryPaths: string[], options?: { cwd?: string }): ImpactedTnl[]` where each `ImpactedTnl` carries exactly: `id`, `title`, `sourcePath`, `scope`.
+  - The CLI MUST register an `impacted` subcommand via the default registry; `src/index.ts` MUST import the command module.
+  - The CLI MUST accept one or more positional path arguments. Zero positional paths MUST exit 2 with a usage message on stderr.
+  - Path overlap between a query path Q and a TNL path T MUST be defined as: Q equals T, OR T is a directory prefix of Q (Q starts with T + `/`), OR Q is a directory prefix of T. Trailing slashes on either side MUST be handled consistently.
+  - Every TNL with `scope: repo-wide` MUST appear in the result regardless of query paths.
+  - A TNL with `scope: feature` MUST appear in the result iff at least one of its declared `paths:` entries overlaps with at least one of the query paths.
+  - Results MUST be ordered deterministically: `repo-wide` units first (sorted by `id`), then `feature` units (sorted by `id`). No duplicates.
+  - The CLI MUST print one `id` per line on stdout and exit 0 (including the zero-match case, which prints nothing).
+  - When the `tnl/` directory does not exist in the invocation CWD, the CLI MUST print an error telling the user to run `tnl init` first and exit 2.
+  - When any `.tnl` file under `./tnl/` fails to parse, the module MUST propagate the parse error (fail fast; malformed contracts are a user-fixable error, not a silent skip).
+  - The module MUST NOT invoke an LLM, make network calls, or depend on any runtime package outside Node's standard library.
+  - Tests MUST cover: exact path match; directory prefix in both directions (query-is-dir-of-TNL-file, TNL-is-dir-of-query-file); non-overlap yields no feature match; `repo-wide` unit always included; multiple query paths union correctly; deterministic ordering (repo-wide first, then alpha by id); empty query paths → exit 2; no `tnl/` directory → exit 2; malformed `.tnl` file under `./tnl/` → exit 2; zero-match CLI exits 0 with empty stdout.
+
+non-goals:
+  - Glob patterns in query paths (`src/**/*.ts`) — deferred.
+  - Matching against `surfaces:` (CLI commands, routes, MCP tools) — deferred; A2 scope is `paths:` only per the phase plan.
+  - Reading the sidecar; `impacted` reads `.tnl` files directly via the parser.
+  - JSON output mode — the MCP server (A3) exposes the programmatic form. CLI stays plain-text.
+  - Excluding units based on any attribute other than `paths:` and `scope:`.
+
+rationale:
+  Why include repo-wide units unconditionally: a repo-wide TNL (like
+  `workflow.tnl`) applies to every session by definition. Agents asking
+  "which TNLs cover my edit" need the repo-wide rules in every answer.
+
+  Why fail fast on a malformed `.tnl` rather than skip: a parse error
+  means the contract in that file is currently invalid, and downstream
+  tools (resolver, verifier, MCP) would miss it silently otherwise.
+  Surfacing the failure here pushes the user to fix the broken file.
+
+  Why one id per line on stdout: composes trivially with shell
+  pipelines (`tnl impacted src/foo.ts | xargs tnl retrieve` once
+  retrieve lands in A3). Programmatic consumers use the MCP server.

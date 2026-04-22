@@ -1,0 +1,30 @@
+{
+  "unit_hash": "0f64081ee252f4906c181d877f82fa12a63151b97500f2c7c7cbac44a76e712c",
+  "resolved_at": "2026-04-22T02:53:45.991Z",
+  "clauses": {
+    "L-1": {
+      "hash": "9a510255018edd914fdedb935405e6dc3f25579cd6244cdad89ad686bdc38176",
+      "class": "structural"
+    },
+    "L-2": {
+      "hash": "5217a9e2f339a0d5525e64ffc9b0a9912d5e390c9bad0489bed72594a0603676",
+      "class": "structural"
+    },
+    "L-3": {
+      "hash": "93d93126047dd44ebb330c47a018abbbadf2c44410f904e18b6a08a3c6d7ad62",
+      "class": "structural"
+    },
+    "L-4": {
+      "hash": "24f8a297232b1326693eec6b91ce248a0093e85d708999b5346b1f6e4e852011",
+      "class": "structural"
+    },
+    "L-5": {
+      "hash": "7d22fa20720c93bdf938c6dbbb414d72a28e8ce5442e75af513d7e9ccbec28bf",
+      "class": "structural"
+    },
+    "L-6": {
+      "hash": "be08f025ff71dc6ca2cecbc12d2f205d737c8def4f815b4e38b2fdfb14819f4d",
+      "class": "structural"
+    }
+  }
+}

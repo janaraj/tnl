@@ -1,0 +1,402 @@
+[
+  {
+    "scenario_id": "A1",
+    "category": "timezone",
+    "title": "Schedule with naive ISO timestamp",
+    "status": "fail",
+    "observed": "storage.set_cron accepted ISO timestamp as cron string: cron=2026-05-01T10:00:00",
+    "notes": "Baseline uses cron expressions, not timestamps; storage stores any string; validation happens at scheduler.evaluate() call time",
+    "expected": "Reject (cron-only) or normalize",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "A2",
+    "category": "timezone",
+    "title": "Non-UTC offset semantics in scheduled sends",
+    "status": "not_applicable",
+    "observed": "Baseline schedules via cron expressions (no timezone field)",
+    "notes": "UTC/local ambiguity is resolved by server clock only",
+    "expected": "N/A \u2014 baseline uses cron, not timestamps",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "A3",
+    "category": "timezone",
+    "title": "Schedule for a specific UTC timestamp",
+    "status": "not_applicable",
+    "observed": "Baseline's CLI 'schedule' command accepts a cron expression only; no one-shot timestamp scheduling exists",
+    "notes": "Divergence from the original request: 'schedule for later' was interpreted as cron-based recurring",
+    "expected": "Accept",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "A4",
+    "category": "timezone",
+    "title": "Cron with next-fire in past",
+    "status": "fail",
+    "observed": "Not picked up; 0 drafts due",
+    "notes": "",
+    "expected": "Fire immediately on next evaluate",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "A5",
+    "category": "timezone",
+    "title": "Schedule far in future (10 years)",
+    "status": "not_applicable",
+    "observed": "Baseline has no one-shot future timestamp; cron recurs forever",
+    "notes": "",
+    "expected": "Accept",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "B1",
+    "category": "state",
+    "title": "Transition posted \u2192 scheduled",
+    "status": "fail",
+    "observed": "set_status allowed posted \u2192 scheduled",
+    "notes": "Storage does not enforce state machine rules",
+    "expected": "Reject (terminal state)",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "B2",
+    "category": "state",
+    "title": "Re-cancel cancelled",
+    "status": "pass",
+    "observed": "Allowed; status=cancelled (idempotent)",
+    "notes": "",
+    "expected": "Idempotent / reject",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "B3",
+    "category": "state",
+    "title": "Delete posted draft",
+    "status": "pass",
+    "observed": "Deleted",
+    "notes": "",
+    "expected": "Allow (hard delete)",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "B4",
+    "category": "state",
+    "title": "Cancel posted draft",
+    "status": "fail",
+    "observed": "Storage allowed posted \u2192 cancelled",
+    "notes": "Storage does not enforce state machine",
+    "expected": "Reject illegal transition",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "B5",
+    "category": "state",
+    "title": "Re-schedule (replace cron)",
+    "status": "pass",
+    "observed": "Replaced cron: 30 * * * *",
+    "notes": "",
+    "expected": "Defined (replace or reject)",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "B6",
+    "category": "state",
+    "title": "Schedule (set_cron) on posted draft",
+    "status": "fail",
+    "observed": "cron=0 * * * *; status=scheduled",
+    "notes": "Storage allows set_cron regardless of status",
+    "expected": "Reject",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "B7",
+    "category": "state",
+    "title": "Duplicate content \u2192 different IDs",
+    "status": "pass",
+    "observed": "b36c87d6... vs 90175b8b...",
+    "notes": "",
+    "expected": "Different IDs",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "C1",
+    "category": "concurrency",
+    "title": "Sequential try_claim",
+    "status": "pass",
+    "observed": "first=True, second=False",
+    "notes": "try_claim uses optimistic lock via status transition",
+    "expected": "First succeeds, second fails",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "C2",
+    "category": "concurrency",
+    "title": "Delete then try_claim",
+    "status": "pass",
+    "observed": "claimed=False after delete",
+    "notes": "",
+    "expected": "Claim returns False",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "D1",
+    "category": "id",
+    "title": "Full ID match",
+    "status": "pass",
+    "observed": "Got: 33cb5b322b304391",
+    "notes": "",
+    "expected": "Returns draft",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "D2",
+    "category": "id",
+    "title": "Prefix match support",
+    "status": "fail",
+    "observed": "No draft-resolver/prefix helper in cli.main",
+    "notes": "Baseline requires exact ID; prefix match not supported",
+    "expected": "Supports prefix match or clear error",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "D3",
+    "category": "id",
+    "title": "Ambiguous prefix",
+    "status": "not_applicable",
+    "observed": "Baseline doesn't support prefix resolution",
+    "notes": "",
+    "expected": "",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "D4",
+    "category": "id",
+    "title": "Non-existent ID",
+    "status": "pass",
+    "observed": "Got: None",
+    "notes": "",
+    "expected": "None",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "E1",
+    "category": "input",
+    "title": "Empty content (empty dict)",
+    "status": "fail",
+    "observed": "Stored empty dict; draft created 8f279742...",
+    "notes": "No validation on empty content",
+    "expected": "Reject",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "E2",
+    "category": "input",
+    "title": "Very long content (5000 chars)",
+    "status": "pass",
+    "observed": "Stored len=5000",
+    "notes": "",
+    "expected": "Stored; pack enforces limits",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "E3",
+    "category": "input",
+    "title": "Unknown service name",
+    "status": "fail",
+    "observed": "Storage accepted unknown service",
+    "notes": "Deferred to send time",
+    "expected": "Reject at creation or at send",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "E4",
+    "category": "input",
+    "title": "Unknown action name",
+    "status": "fail",
+    "observed": "Storage accepted unknown action",
+    "notes": "Deferred to send time",
+    "expected": "Reject at creation or at send",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "E5",
+    "category": "input",
+    "title": "SQL injection in content",
+    "status": "pass",
+    "observed": "Stored intact; 1 drafts listable",
+    "notes": "",
+    "expected": "Stored intact; table intact",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "E6",
+    "category": "input",
+    "title": "Unicode / emoji / RTL",
+    "status": "pass",
+    "observed": "Intact",
+    "notes": "",
+    "expected": "Stored and retrieved intact",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "E7",
+    "category": "input",
+    "title": "None as content",
+    "status": "pass",
+    "observed": "Rejected: ValidationError: 1 validation error for Draft\ncontent\n  Input should be a valid dictionary [type=dict_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.12/v/dict_type",
+    "notes": "",
+    "expected": "Reject",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "F1",
+    "category": "send",
+    "title": "Pack raises exception",
+    "status": "pass",
+    "observed": "result.ok=False, code=dispatch_error, last_post_result={'ok': False, 'error': {'code': 'dispatch_error', 'message': 'RuntimeError: simulated failure'}}",
+    "notes": "post_via_pack catches; returns ok=False; draft status NOT auto-transitioned to 'failed' (baseline has no 'failed' state)",
+    "expected": "Draft transitions to failure state + result.ok=False",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "F2",
+    "category": "send",
+    "title": "Pack returns ok=False",
+    "status": "pass",
+    "observed": "status=pending, last_post_result={'ok': False, 'error': {'code': 'sim', 'message': 'nope'}}",
+    "notes": "Baseline: status NOT auto-updated on failure; caller (CLI or scheduler) must handle transition",
+    "expected": "Result recorded; status reflects failure",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "F3",
+    "category": "send",
+    "title": "Pack not registered",
+    "status": "pass",
+    "observed": "Raised: KeyError: \"No pack registered for tool 'create_tweet'\"",
+    "notes": "Baseline: get_pack_for_tool raises when pack missing",
+    "expected": "Raise or return ok=False",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "F4",
+    "category": "send",
+    "title": "Partial success",
+    "status": "not_applicable",
+    "observed": "Requires fault-injection; skipped",
+    "notes": "",
+    "expected": "Best-effort",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "G1",
+    "category": "schedule",
+    "title": "Delete scheduled draft",
+    "status": "pass",
+    "observed": "After delete: draft=None",
+    "notes": "No separate scheduled_sends table; cron lives on draft row",
+    "expected": "Draft gone, cron disappears with it",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "G2",
+    "category": "schedule",
+    "title": "Scheduler picks up due cron",
+    "status": "pass",
+    "observed": "Due at now+2min: count=1",
+    "notes": "Baseline cron only becomes due after next-fire anchor",
+    "expected": "Yes",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "G3",
+    "category": "schedule",
+    "title": "Re-schedule existing",
+    "status": "pass",
+    "observed": "Covered by B5 \u2014 set_cron replaces",
+    "notes": "See B5",
+    "expected": "Replace or reject defined",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "G4",
+    "category": "schedule",
+    "title": "Invalid cron skipped",
+    "status": "pass",
+    "observed": "due_ids=['e1e60148a31049c9']",
+    "notes": "Bad cron logged and skipped; good still processes",
+    "expected": "Skip bad, process good",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "H1",
+    "category": "llm",
+    "title": "drafts_mode=True exposes save_draft, hides request_approval",
+    "status": "fail",
+    "observed": "drafts_mode=True, save_draft=True, request_approval=True",
+    "notes": "Baseline keeps request_approval alongside save_draft",
+    "expected": "Tool list matches mode",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "H2",
+    "category": "llm",
+    "title": "drafts_mode=False hides save_draft, exposes request_approval",
+    "status": "pass",
+    "observed": "drafts_mode=False, save_draft=False, request_approval=True",
+    "notes": "",
+    "expected": "Tool list matches mode",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "H3",
+    "category": "llm",
+    "title": "Unknown fields dropped via allowlist",
+    "status": "pass",
+    "observed": "draft_id=547742ae..., content={'text': 'hello'}",
+    "notes": "",
+    "expected": "Dropped",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "H4",
+    "category": "llm",
+    "title": "Missing required fields",
+    "status": "pass",
+    "observed": "result={'ok': False, 'error': {'code': 'missing_fields', 'message': \"save_draft requires: ['action', 'service']\"}}",
+    "notes": "",
+    "expected": "Clear error, no write",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "I1",
+    "category": "integration",
+    "title": "Approved send creates a runs row",
+    "status": "fail",
+    "observed": "runs: []",
+    "notes": "Baseline: post_via_pack does NOT create a runs row \u2014 caller must create it separately (CLI/daemon own this)",
+    "expected": "1+ runs row",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "I2",
+    "category": "integration",
+    "title": "Approved send creates an actions row",
+    "status": "fail",
+    "observed": "actions: []",
+    "notes": "",
+    "expected": "1+ actions row",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "I3",
+    "category": "integration",
+    "title": "Approved send writes rate_limits",
+    "status": "not_applicable",
+    "observed": "rate_limits: []",
+    "notes": "FakePack doesn't increment; baseline inherits from twitter client's _write_request",
+    "expected": "N/A without real pack",
+    "traceback": ""
+  }
+]

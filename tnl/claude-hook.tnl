@@ -1,0 +1,75 @@
+id: claude-hook
+title: Claude Code PreToolUse hook
+scope: feature
+owners: [@jana]
+paths: [src/commands/hook.ts, src/commands/init.ts, src/index.ts]
+surfaces: [tnl hook]
+dependencies: [cli-skeleton, impacted, cli-init]
+
+intent:
+  Wires TNL into Claude Code's PreToolUse lifecycle. Before Claude
+  Code runs Edit / Write / MultiEdit, this hook receives the tool
+  invocation, looks up feature TNLs whose `paths:` overlap with the
+  target file, and injects their verbatim content as
+  `additionalContext` so the agent reviews the contract before the
+  write. `tnl init --agent claude` registers the hook in
+  `.claude/settings.json`. The hook is intentionally silent on empty
+  impact, unsupported tools, and malformed input — it never blocks.
+
+behaviors:
+  - `src/commands/hook.ts` MUST register a `hook` subcommand with the default registry; `src/index.ts` MUST import the command module.
+  - The command MUST dispatch on its first positional argument. `pre-tool-use` routes to the PreToolUse handler; any other first-positional value MUST exit 0 silently.
+  - The PreToolUse handler MUST read JSON from stdin (via `process.stdin` in production; tests MAY inject a string via a `stdin` option). Malformed or empty JSON MUST cause the handler to exit 0 with no stdout.
+  - The handler MUST check `hookInput.tool_name`. When the tool is not `Edit`, `Write`, or `MultiEdit`, it MUST exit 0 with no stdout.
+  - The handler MUST extract a file path from `hookInput.tool_input.file_path`. When the field is missing or not a non-empty string, it MUST exit 0 with no stdout.
+  - The handler MUST compute a repo-relative path: if the extracted path starts with the configured cwd, the cwd prefix (and any leading separator) MUST be stripped; otherwise the path MUST be used as-is.
+  - The handler MUST call `getImpactedTnls([relativePath], { cwd })`. If that throws (no `tnl/` directory, malformed `.tnl`, etc.), the handler MUST exit 0 with no stdout — the hook MUST NOT block edits over TNL issues.
+  - The handler MUST filter the impacted list to exclude `repo-wide` units. Only units of scope `feature` whose `paths:` overlap with the target contribute to `additionalContext`. Rationale: the CLAUDE.md stanza already references the baseline workflow; per-edit injection of `workflow.tnl` would add noise.
+  - When the filtered impacted list is empty, the handler MUST exit 0 with no stdout.
+  - When one or more feature TNLs remain, the handler MUST read each TNL's source file and emit a single JSON object on stdout with shape `{ hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: <string> } }`. `<string>` MUST start with a short header line, then for each impacted TNL include a delimiter line `--- <id> (feature) — <sourcePath> ---` followed by the verbatim TNL content and a blank line.
+  - The handler MUST exit 0 on all paths. A failed read for one TNL MUST skip that TNL and continue with the others; if every read fails, the handler MUST exit 0 with no stdout.
+  - The handler MUST NOT write to stderr during any defined path above. stderr is reserved for future failure modes; writing there surfaces as a visible Claude Code hook error.
+  - When `tnl init` determines Claude is a target agent, init MUST write or merge `<cwd>/.claude/settings.json` to register a `PreToolUse` hook matching `Edit|Write|MultiEdit` whose command runs `npx @tnl/cli hook pre-tool-use`.
+  - The settings merge MUST be idempotent: if the raw text of the existing `.claude/settings.json` contains the full hook command string (`npx @tnl/cli hook pre-tool-use`), init MUST leave the file untouched and report the skip.
+  - When `.claude/settings.json` does not exist, init MUST create it with a single `hooks.PreToolUse` entry for the TNL hook. When it exists and is valid JSON, init MUST preserve every pre-existing field and add only the TNL hook entry to `hooks.PreToolUse`.
+  - If `.claude/settings.json` exists but is not valid JSON, init MUST emit a warning (to stderr AND the summary warnings list) naming the file and MUST skip the merge; the existing file MUST NOT be overwritten.
+  - The hook MUST NOT be registered for non-Claude agents. When `--agent codex` or `--agent gemini` is the only target, init MUST NOT create or modify `.claude/settings.json`.
+  - This installation step MAY be suppressed by `tnl init`'s `--no-hook` or `--minimal` opt-out flag (defined in `cli-init.tnl`). When suppressed, the step is skipped and the summary reports `.claude/settings.json` under `Skipped (opt-out)` rather than `Created` or `Skipped (already present)`.
+  - Tests MUST cover: `pre-tool-use` returns empty stdout on empty stdin; same on malformed JSON; same on missing/unsupported `tool_name`; same on missing `file_path`; empty impacted list → empty stdout; feature-only impacted list produces JSON with `hookSpecificOutput.additionalContext` including all feature TNL contents and delimiters; repo-wide units are excluded from the injection; absolute file path under cwd is stripped to repo-relative; `getImpactedTnls` throw → empty stdout (no crash); unknown hook sub-subcommand exits 0 silently; init writes `.claude/settings.json` with the hook entry when absent; init preserves existing top-level settings fields when merging; init is idempotent (second run with entry already present → skip); init warns and skips when existing settings.json is malformed JSON; hook is NOT registered when the only target is codex or gemini; stdin injection option works for testing.
+
+non-goals:
+  - `PostToolUse`, `UserPromptSubmit`, or other Claude Code hook events — only `PreToolUse` in v1.
+  - Codex / Gemini hook integration — those surfaces don't expose equivalent hooks.
+  - Blocking edits on TNL violations — the hook never blocks; gating is `tnl verify` + CI.
+  - Caching or rate-limiting hook output.
+  - Session correlation or de-dup — each invocation is standalone.
+  - Serving the hook as a long-lived process (the subcommand runs and exits per invocation).
+
+rationale:
+  Why the hook never blocks: hooks run before every Edit/Write. Any
+  blocking behavior triples the blast radius of a bug or edge case.
+  The hook's job is to provide context; gating happens via `tnl
+  verify` in CI.
+
+  Why silent pass-through on errors: Claude Code surfaces hook stderr
+  as a visible user error. For malformed input or filesystem issues,
+  a visible error is worse than a no-op — the user would blame the
+  tool without actionable detail. Real bugs surface via tests.
+
+  Why exclude `repo-wide` TNLs from injection: the CLAUDE.md stanza
+  already points at `workflow.tnl`. Injecting it again on every
+  edit adds noise without adding signal. Feature TNLs are the
+  edit-specific contracts the agent needs to see.
+
+  Why `npx @tnl/cli hook pre-tool-use` rather than bare `tnl`: `npx`
+  resolves the package whether the user installed globally,
+  locally, or runs from a clean shell. Bare `tnl` needs the user
+  to have configured PATH.
+
+  Why substring match on the raw settings.json text for idempotency:
+  JSON has no comments, sentinel fields risk being stripped by other
+  tools, and searching the whole text is cheaper than deep-walking
+  the parsed object. The full command `npx @tnl/cli hook pre-tool-use`
+  is stable and unambiguous — shorter substrings like
+  `tnl hook pre-tool-use` get broken up by package-name separators
+  (the literal `@tnl/cli` interrupts the match).

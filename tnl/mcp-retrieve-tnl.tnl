@@ -1,0 +1,56 @@
+id: mcp-retrieve-tnl
+title: MCP tool — retrieve_tnl
+scope: feature
+owners: [@jana]
+paths: [src/mcp/tools/retrieve.ts, src/mcp/server.ts]
+surfaces: [mcp:retrieve_tnl]
+dependencies: [mcp-skeleton]
+
+intent:
+  MCP tool that returns the full raw content of TNL units identified by
+  `id`. Agents call this after `get_impacted_tnls` to read the actual
+  clauses governing their planned edit. The tool reads `.tnl` files
+  from `./tnl/` (relative to the configured cwd) and returns each
+  file's verbatim text plus a list of ids it could not find.
+
+behaviors:
+  - The tool module MUST export `createRetrieveTnlTool(options?: { cwd?: string }): McpTool`. When `cwd` is not supplied, the tool MUST capture `process.cwd()` at construction time.
+  - The tool module MUST register a default-configured tool with the skeleton's `mcpTools` registry by side-effect on import, so `src/mcp/server.ts` attaches it with a single `import` line.
+  - The registered tool name MUST be `retrieve_tnl` (matching implementation-v1.md §6.1).
+  - The tool's `inputSchema` MUST accept `{ ids: string[] }` with `ids` required, `type: array`, `items: { type: 'string' }`, and `minItems: 1`.
+  - On valid arguments, the tool MUST look up each id by reading `<cwd>/tnl/<id>.tnl`. Found units MUST appear in a `tnls` array; ids with no matching file MUST appear in a separate `notFound` array.
+  - The response MUST be a single `{ type: 'text', text: <json> }` content entry whose JSON is `{ tnls: Array<{ id: string; content: string }>; notFound: string[] }`. `content` is the verbatim file text — no normalization, no CRLF rewriting, no parsing.
+  - The tool MUST NOT parse or validate the `.tnl` files it returns. Content is returned verbatim even if the file would fail `parseTnl`, so agents can inspect broken contracts.
+  - The `tnls` array MUST preserve the order of ids as they first appear in the input (post-dedup). Duplicate ids in the input MUST be deduplicated: the tool reads each distinct id exactly once and produces at most one entry per id.
+  - When `args` is not an object, when `args.ids` is missing, when it is not an array, when it is empty, or when any element is not a string, the tool MUST return `{ content: [...], isError: true }` without reading any file.
+  - When every id resolves, `isError` MUST NOT be set. When every id is absent (`tnls` empty, `notFound` full), `isError` MUST NOT be set either — `notFound` is informational, not an error.
+  - When the configured `cwd` has no `tnl/` directory, the tool MUST return `{ content: [...], isError: true }` with a message telling the user to run `tnl init` first.
+  - A filesystem read error other than "file not found" (e.g., permission denied) MUST surface as `{ content: [...], isError: true }` with the underlying error message.
+  - The id MUST NOT be used as a filesystem path segment that can escape `tnl/`. Any id containing a path separator (`/` or `\`) or equal to `..` / `.` / empty string MUST be rejected — treated as `notFound`, not `isError` — because the parser rejects such ids anyway and the tool MUST NOT attempt to read outside `tnl/`.
+  - The tool handler MUST NOT write to stdout.
+  - `src/mcp/server.ts` MUST add a side-effect import of the tool module.
+  - Tests MUST cover: tool name and inputSchema; valid single-id lookup returns verbatim content; multi-id lookup preserves input order; unknown ids appear in `notFound`; duplicate ids deduplicated; mixed found-and-missing lookup; `args` / `ids` validation failures (not-object / missing / wrong-type / empty / non-string element); all-unknown ids returns empty `tnls` + populated `notFound` with no `isError`; no `tnl/` directory → `isError`; path-traversal attempt (`../etc/passwd`) is rejected as `notFound`, no filesystem read; default registry contains `retrieve_tnl` after module import; verbatim roundtrip — returned content byte-for-byte matches the source file even if it is malformed.
+
+non-goals:
+  - Parsing or validating TNL content — callers run `parseTnl` themselves if they want structure.
+  - Returning sidecar metadata — a separate tool concern (later phase).
+  - Recursive lookup across `dependencies:` — the caller asks for exactly the ids it wants.
+  - Resolving ids from surfaces or paths — use `get_impacted_tnls`.
+  - Character-set normalization (BOM, encoding, line endings) — returned verbatim.
+
+rationale:
+  Why verbatim content rather than parsed structure: agents read English
+  clauses, not ASTs. Returning raw text also lets the tool serve
+  malformed files, which is exactly when a human needs to look at
+  them.
+
+  Why `notFound` as informational rather than an error: `retrieve_tnl`
+  is usually called with a batch of ids from `get_impacted_tnls` (or a
+  later enumeration tool). A partial miss should not kill the whole
+  call; the agent can list what's missing and retry or report.
+
+  Why reject path-traversal ids as `notFound` rather than `isError`:
+  the parser already rejects such ids at resolve time, so the only
+  way we'd see them here is a misbehaving or malicious caller. Quiet
+  `notFound` denies the attacker a discriminator while still being
+  truthful (the file was indeed not retrieved).

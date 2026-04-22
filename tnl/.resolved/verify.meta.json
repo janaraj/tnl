@@ -1,0 +1,66 @@
+{
+  "unit_hash": "51211b0daae3a5dc11084912e7fc9ff5d7d0d38145202cf9eca91a265f80ca86",
+  "resolved_at": "2026-04-22T02:53:45.991Z",
+  "clauses": {
+    "L-1": {
+      "hash": "0c9ca1cd09bf10771061adaec0c0658a3d6d41f6166b2ce629c39838168c57c5",
+      "class": "structural"
+    },
+    "L-2": {
+      "hash": "f52e723875823cc7b81d367ca7274157dabea52142b124c114750a669d3ab830",
+      "class": "structural"
+    },
+    "L-3": {
+      "hash": "f0f225c2ecf9105e0ea37eea84d3db8c27ed01a41e27986cc5df53805a835949",
+      "class": "structural"
+    },
+    "L-4": {
+      "hash": "47d64267c3b1834d226faf3f4ec7842c478d9f5390e21e12f786a6ce19b9e1a2",
+      "class": "structural"
+    },
+    "L-5": {
+      "hash": "db9040836288e693b1e079865ab6a36d1e40e1b705e196673358d3e56daf4994",
+      "class": "structural"
+    },
+    "L-6": {
+      "hash": "8237133de9a0000fcf4a489787e678a1696e12b398e7a1e4f0aa603a69e30eef",
+      "class": "structural"
+    },
+    "L-7": {
+      "hash": "8cf5f5e22ab18850ebccfb472cbd745ad8103eb62caafc89a22d3da7448dad2b",
+      "class": "structural"
+    },
+    "L-8": {
+      "hash": "7a56479a59768447900f38f688056186d3786fd5d37ed9d58ca69de1f7b9be0b",
+      "class": "structural"
+    },
+    "L-9": {
+      "hash": "044c4fc24180ce91699dc87177635d89b87b28a22670c46a9126eddc4cee0494",
+      "class": "structural"
+    },
+    "L-10": {
+      "hash": "cf3820c7377b8d07ced6f0114ae56445e685139e6ec078e980e1fbf18003c55c",
+      "class": "structural"
+    },
+    "L-11": {
+      "hash": "2b9789e1be36cfa897676474a2e7e16a188d857c1ddda7be6e7a4de26d2fcf85",
+      "class": "structural"
+    },
+    "L-12": {
+      "hash": "1ad3d7376c3c44f1f1194d2e8926ddb1c837b9f5abccc61dc520daf09dc316bd",
+      "class": "structural"
+    },
+    "L-13": {
+      "hash": "695869f7632e539d808de85d501aceab6f24f78e01e2716b70b170bc37730bee",
+      "class": "structural"
+    },
+    "L-14": {
+      "hash": "17ca35f6f8612a94d300f983cd25bea41f5a097568289e42d624e3600dd5876c",
+      "class": "structural"
+    },
+    "L-15": {
+      "hash": "24b2cedc0179cbe4e6cd4b34144a6dbab822eb1a204578b5a4b041ca5d83d3d2",
+      "class": "structural"
+    }
+  }
+}

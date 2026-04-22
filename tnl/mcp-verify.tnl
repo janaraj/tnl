@@ -1,0 +1,54 @@
+id: mcp-verify
+title: MCP tool — verify
+scope: feature
+owners: [@jana]
+paths: [src/mcp/tools/verify.ts, src/mcp/server.ts]
+surfaces: [mcp:verify]
+dependencies: [mcp-skeleton, impacted, verify]
+
+intent:
+  MCP tool that lets an agent verify the TNLs impacted by a set of code
+  paths. Given `paths` (code files the agent is about to touch), the
+  tool finds the TNL units whose `paths:` overlap (via A2's impact
+  module), plus all repo-wide units, then runs the A5 verifier on each
+  and returns a structured report. Verify failures are data in the
+  response, not a tool error — only argument or filesystem problems
+  set `isError`.
+
+behaviors:
+  - The tool module MUST export `createVerifyTool(options?: { cwd?: string }): McpTool`. When `cwd` is not supplied, the tool MUST capture `process.cwd()` at construction time.
+  - The tool module MUST register a default-configured tool with `mcpTools` by side-effect on import, so `src/mcp/server.ts` attaches it with a single `import` line.
+  - The registered tool name MUST be `verify` (matching implementation-v1.md §6.1).
+  - The tool's `inputSchema` MUST accept `{ paths: string[] }` with `paths` required, `type: array`, `items: { type: 'string' }`, and `minItems: 1`.
+  - When `args` is not an object, when `args.paths` is missing, when it is not an array, when it is empty, or when any element is not a string, the tool MUST return `{ content: [...], isError: true }` without touching the filesystem.
+  - On valid arguments, the tool MUST invoke `getImpactedTnls(args.paths, { cwd })` to determine which TNL units to verify. If that call throws (e.g., no `tnl/` directory, malformed `.tnl` in `tnl/`), the tool MUST return `isError: true` with a message naming the underlying error.
+  - For each impacted unit, the tool MUST invoke `verifyTnl(unit.sourcePath, { cwd })`. Parser / resolver exceptions thrown during verify MUST be caught and added to an `errors` array in the response — they MUST NOT flip `isError`. (In practice `getImpactedTnls` fails fast on any malformed TNL, so the `errors` array is a defensive path for races between impact-time and verify-time rather than for authoring mistakes.)
+  - The response MUST be a single `{ type: 'text', text: <json> }` content entry. The JSON MUST have shape `{ verified: Array<{ id, passed, failed, unchecked, failures: Array<{ kind, name, class?, reason }> }>, errors: Array<{ sourcePath, message }>, summary: { total_units, total_checks, total_failed, total_unchecked, total_errors } }`. `failures` contains only checks with `status: 'failed'`; passed and unchecked checks are represented only in the counts.
+  - Verify failures and parse errors are data. The tool MUST NOT set `isError: true` based on `total_failed`, `total_errors`, or any verify outcome. `isError` is reserved for tool-level problems (bad args, missing `tnl/`, etc.).
+  - The tool handler MUST NOT write to stdout.
+  - `src/mcp/server.ts` MUST add a side-effect import of the tool module.
+  - Tests MUST cover: tool name and inputSchema; valid call returns JSON with impacted units' results; repo-wide units appear in results when any path is provided; unit-level failures (`paths-exist` / `dependencies-resolve`) appear in the unit's `failures` array without `class`; test-binding failure appears with `class: 'test-backed'`; `args.paths` missing / wrong-type / empty / non-string-element → `isError`; args not an object → `isError`; malformed `.tnl` present in `tnl/` → `isError` (because `getImpactedTnls` fails fast); no `tnl/` directory → `isError`; default registry contains `verify` after module import.
+
+non-goals:
+  - Executing tests — same non-goal as `verify.tnl`.
+  - Taking TNL ids directly; the tool takes code paths per the spec. Agents with specific ids in hand can call the verifier library or CLI.
+  - Streaming / incremental results — one complete JSON payload per call.
+  - `--verbose` / detail levels — the JSON includes everything an agent needs.
+  - Caching across calls.
+
+rationale:
+  Why take code paths (not TNL ids): the canonical agent flow is
+  "I'm about to edit src/foo.ts; what verifies for this?" The tool
+  answers by chaining impact → verify. Agents already holding
+  specific TNL ids (e.g., from `retrieve_tnl`) can call the verifier
+  library or CLI directly.
+
+  Why verify failures are data, not `isError`: `isError` means "the
+  tool couldn't do its job." A verify failure means "the tool did
+  its job and found a contract violation." Setting `isError` for
+  the latter confuses protocol semantics and makes the agent
+  retry instead of reporting the violation.
+
+  Why include repo-wide units automatically: same reasoning as
+  `get_impacted_tnls`. Repo-wide TNLs apply to every session;
+  the agent needs their status alongside feature-specific ones.

@@ -1,0 +1,402 @@
+[
+  {
+    "scenario_id": "A1",
+    "category": "timezone",
+    "title": "Schedule with naive timestamp (no tz)",
+    "status": "pass",
+    "observed": "Rejected: BadParameter: '2026-05-01T10:00:00' is missing a timezone; use UTC (e.g. '2026-04-25T12:00:00Z')",
+    "notes": "CNL's _parse_utc_iso rejects naive timestamps",
+    "expected": "Reject \u2014 must not silently normalize",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "A2",
+    "category": "timezone",
+    "title": "Schedule with non-UTC offset +05:30",
+    "status": "pass",
+    "observed": "Rejected: BadParameter: '2026-05-01T10:00:00+05:30' must be UTC (offset 00:00); got offset 5:30:00",
+    "notes": "CNL rejects non-UTC offsets at CLI",
+    "expected": "Reject",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "A3",
+    "category": "timezone",
+    "title": "Schedule with UTC Z",
+    "status": "pass",
+    "observed": "Parsed to 2026-05-01T10:00:00+00:00",
+    "notes": "",
+    "expected": "Accept",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "A4",
+    "category": "timezone",
+    "title": "Schedule in the past",
+    "status": "pass",
+    "observed": "Accepted past timestamp; fires immediately via claim",
+    "notes": "Storage allows past fire_at and claims immediately",
+    "expected": "Clear behavior (fire immediately OR reject)",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "A5",
+    "category": "timezone",
+    "title": "Schedule 10 years in the future",
+    "status": "pass",
+    "observed": "Accepted far future: 2036-04-18 17:54:25.808808+00:00",
+    "notes": "",
+    "expected": "Accept",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "B1",
+    "category": "state",
+    "title": "Approve/schedule already-sent",
+    "status": "fail",
+    "observed": "schedule_send allowed on sent draft",
+    "notes": "",
+    "expected": "Reject",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "B2",
+    "category": "state",
+    "title": "Re-reject already-rejected",
+    "status": "fail",
+    "observed": "Status transition allowed; notes=second",
+    "notes": "Storage doesn't enforce 'no re-transition from terminal'",
+    "expected": "Reject",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "B3",
+    "category": "state",
+    "title": "Delete sent draft",
+    "status": "pass",
+    "observed": "Delete succeeds on sent draft (hard-delete by design)",
+    "notes": "CNL says hard-delete, no soft-delete",
+    "expected": "Allow or reject consistently",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "B4",
+    "category": "state",
+    "title": "Reject sent draft (via storage)",
+    "status": "fail",
+    "observed": "Storage allowed sent \u2192 rejected",
+    "notes": "Storage does not enforce state machine",
+    "expected": "Reject illegal transition",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "B5",
+    "category": "state",
+    "title": "Re-schedule already-scheduled",
+    "status": "pass",
+    "observed": "Replaced schedule without error (UPSERT semantics)",
+    "notes": "",
+    "expected": "Defined behavior (replace or reject)",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "B6",
+    "category": "state",
+    "title": "Schedule a sent draft",
+    "status": "fail",
+    "observed": "Allowed schedule on sent draft (storage-level)",
+    "notes": "",
+    "expected": "Reject",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "B7",
+    "category": "state",
+    "title": "Duplicate content \u2192 different IDs",
+    "status": "pass",
+    "observed": "IDs: 75b8452f... vs e41d02a3...",
+    "notes": "",
+    "expected": "Different IDs",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "C1",
+    "category": "concurrency",
+    "title": "Sequential claims (no double-fire)",
+    "status": "pass",
+    "observed": "first=['a2af229267c648129815b63326f26ed0'], second=[]",
+    "notes": "First claim marks claimed_at; second filters it out",
+    "expected": "Second claim returns nothing",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "C2",
+    "category": "concurrency",
+    "title": "Delete then claim",
+    "status": "pass",
+    "observed": "Deleted=True, claimed_count=0",
+    "notes": "CASCADE deleted the scheduled_sends row",
+    "expected": "Claim sees nothing",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "D1",
+    "category": "id",
+    "title": "Full UUID match",
+    "status": "pass",
+    "observed": "Got draft 07fe5852...",
+    "notes": "",
+    "expected": "Returns draft",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "D2",
+    "category": "id",
+    "title": "Unambiguous prefix match",
+    "status": "pass",
+    "observed": "Resolved prefix '5a661ad3' to 5a661ad3...",
+    "notes": "",
+    "expected": "Returns single draft",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "D3",
+    "category": "id",
+    "title": "Ambiguous prefix",
+    "status": "pass",
+    "observed": "Raised: BadParameter: prefix 'b' is ambiguous (2 drafts match)",
+    "notes": "",
+    "expected": "Returns None",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "D4",
+    "category": "id",
+    "title": "Non-existent ID",
+    "status": "pass",
+    "observed": "Returned: None",
+    "notes": "",
+    "expected": "None",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "E1",
+    "category": "input",
+    "title": "Empty content",
+    "status": "fail",
+    "observed": "Stored empty content as draft 4faadaf1",
+    "notes": "No validation on empty content at storage layer",
+    "expected": "Reject",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "E2",
+    "category": "input",
+    "title": "Very long content (5000 chars)",
+    "status": "pass",
+    "observed": "Stored len=5000",
+    "notes": "Storage doesn't check length; pack is expected to",
+    "expected": "Stored as-is; pack enforces limits at send",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "E3",
+    "category": "input",
+    "title": "Unknown service name",
+    "status": "fail",
+    "observed": "Storage accepted service='tiktok'; draft created",
+    "notes": "Storage doesn't validate service name; deferred to send time",
+    "expected": "Either reject at creation or at send",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "E4",
+    "category": "input",
+    "title": "Unknown action name",
+    "status": "fail",
+    "observed": "Storage accepted unknown action",
+    "notes": "Same \u2014 deferred to send time",
+    "expected": "Either reject at creation or at send",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "E5",
+    "category": "input",
+    "title": "SQL injection in content",
+    "status": "pass",
+    "observed": "Stored intact; list_drafts returned 1 rows",
+    "notes": "Parameterized queries work correctly",
+    "expected": "Stored and retrieved intact; table intact",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "E6",
+    "category": "input",
+    "title": "Unicode / emoji / RTL",
+    "status": "pass",
+    "observed": "Intact",
+    "notes": "",
+    "expected": "Stored and retrieved intact",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "E7",
+    "category": "input",
+    "title": "None as content",
+    "status": "pass",
+    "observed": "Rejected: StorageError: create_draft failed: NOT NULL constraint failed: drafts.content",
+    "notes": "",
+    "expected": "Reject",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "F1",
+    "category": "send",
+    "title": "Pack raises \u2192 draft failed",
+    "status": "pass",
+    "observed": "status=failed, notes='APIError: simulated failure', result={'ok': False, 'status': 'failed', 'draft_id': '1349b33217e34e89acae4e9f289e392c', 'run_id': '5e9d9b78c50b4f34', 'error': {'code': 'api_error', 'message': 'simulated failure'}}",
+    "notes": "",
+    "expected": "Draft \u2192 failed",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "F2",
+    "category": "send",
+    "title": "Pack returns ok=False \u2192 draft failed",
+    "status": "pass",
+    "observed": "status=failed, notes='{\"code\": \"sim\", \"message\": \"nope\"}', result={'ok': False, 'status': 'failed', 'draft_id': '35e86825699a4333862817c1e09708bb', 'run_id': 'c562129961c64eca', 'error': {'code': 'sim', 'message': 'nope'}}",
+    "notes": "",
+    "expected": "Draft \u2192 failed",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "F3",
+    "category": "send",
+    "title": "Pack not registered \u2192 draft failed",
+    "status": "pass",
+    "observed": "status=failed, notes=\"unknown service pack 'twitter'\", result={'ok': False, 'error': 'unknown service pack \\'twitter\\': \"No service pack \\'twitter\\' registered. Available: []\"'}",
+    "notes": "",
+    "expected": "Draft \u2192 failed",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "F4",
+    "category": "send",
+    "title": "Partial success (pack ok + storage fails)",
+    "status": "not_applicable",
+    "observed": "Requires fault-injection into storage; skipped",
+    "notes": "",
+    "expected": "Best-effort recovery",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "G1",
+    "category": "schedule",
+    "title": "Delete draft \u2192 scheduled_sends CASCADE",
+    "status": "pass",
+    "observed": "scheduled_sends row gone after delete",
+    "notes": "",
+    "expected": "Row removed",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "G2",
+    "category": "schedule",
+    "title": "Time arrives \u2192 claim picks it up",
+    "status": "pass",
+    "observed": "Claimed 1 drafts",
+    "notes": "",
+    "expected": "Yes",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "G3",
+    "category": "schedule",
+    "title": "Re-schedule existing",
+    "status": "pass",
+    "observed": "Covered by B5 \u2014 CNL uses UPSERT semantics",
+    "notes": "See B5",
+    "expected": "Replace or reject (defined)",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "G4",
+    "category": "schedule",
+    "title": "Cron expression handling",
+    "status": "not_applicable",
+    "observed": "CNL scopes out cron; baseline only",
+    "notes": "Explicit non-goal in promote-drafts.cnl",
+    "expected": "N/A \u2014 CNL explicitly non-goaled cron",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "H1",
+    "category": "llm",
+    "title": "draft_mode=True exposes create_draft, hides request_approval",
+    "status": "pass",
+    "observed": "draft_mode=True, create_draft=True, request_approval=False",
+    "notes": "",
+    "expected": "Tool list matches mode",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "H2",
+    "category": "llm",
+    "title": "draft_mode=False hides create_draft, exposes request_approval",
+    "status": "pass",
+    "observed": "draft_mode=False, create_draft=False, request_approval=True",
+    "notes": "",
+    "expected": "Tool list matches mode",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "H3",
+    "category": "llm",
+    "title": "Unknown fields dropped via allowlist",
+    "status": "pass",
+    "observed": "draft_id=42edb71d..., metadata={}",
+    "notes": "",
+    "expected": "Dropped",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "H4",
+    "category": "llm",
+    "title": "Missing required fields in LLM call",
+    "status": "pass",
+    "observed": "result={'ok': False, 'error': \"create_draft missing required fields: ['service', 'action']\"}",
+    "notes": "",
+    "expected": "Clear error, no write",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "I1",
+    "category": "integration",
+    "title": "Approved send creates a runs row",
+    "status": "pass",
+    "observed": "runs: [{'run_id': '8ef990da3be74b43', 'job_name': 'send_draft', 'use_case': 'test-uc'}]",
+    "notes": "",
+    "expected": "1+ rows",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "I2",
+    "category": "integration",
+    "title": "Approved send creates an actions row",
+    "status": "pass",
+    "observed": "actions: [{'id': 1, 'service': 'twitter', 'action': 'create_tweet'}]",
+    "notes": "",
+    "expected": "1+ rows",
+    "traceback": ""
+  },
+  {
+    "scenario_id": "I3",
+    "category": "integration",
+    "title": "Approved send writes rate_limits (if pack)",
+    "status": "not_applicable",
+    "observed": "rate_limits: []",
+    "notes": "FakePack doesn't increment; real Twitter client does",
+    "expected": "N/A for non-write-tracking packs; informational",
+    "traceback": ""
+  }
+]

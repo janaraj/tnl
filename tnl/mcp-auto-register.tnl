@@ -1,0 +1,57 @@
+id: mcp-auto-register
+title: MCP server registration in Claude Code project config
+scope: feature
+owners: [@jana]
+paths: [src/commands/init.ts]
+surfaces: [tnl init]
+dependencies: [cli-init, mcp-skeleton]
+
+intent:
+  When `tnl init` targets Claude Code, it writes or merges the
+  project-scoped `.mcp.json` at the repo root so the TNL MCP server
+  appears in Claude Code's tool list automatically. The adopter gets
+  tool access without hand-editing a config file. Codex and Gemini
+  MCP registration is NOT automated here — those tools read MCP
+  config from user-scoped files (`~/.codex/...`, `~/.gemini/...`)
+  that a project-scoped init command should not mutate without
+  explicit consent. Those adopters receive a summary hint pointing
+  to the manual config snippet.
+
+behaviors:
+  - When `tnl init` determines Claude is a target agent, init MUST write or merge `<cwd>/.mcp.json` to register the `tnl` MCP server with `{ command: "npx", args: ["-y", "@tnl/mcp-server"] }`.
+  - When `.mcp.json` does not exist, init MUST create it with exactly `{ "mcpServers": { "tnl": { "command": "npx", "args": ["-y", "@tnl/mcp-server"] } } }`.
+  - When `.mcp.json` exists and is valid JSON, init MUST preserve every pre-existing top-level field and merge the `tnl` entry into `mcpServers`. Other servers already registered under `mcpServers` MUST be preserved verbatim.
+  - The merge MUST be idempotent: if `mcpServers.tnl` is already present in the parsed JSON (any value), init MUST leave the file untouched and report the skip. Shape mismatch (e.g., user edited the command) MUST still be treated as "present" — init does NOT overwrite user edits.
+  - If `.mcp.json` exists but is not valid JSON, init MUST emit a warning (to stderr AND the summary warnings list) naming the file and MUST skip the merge; the existing file MUST NOT be overwritten.
+  - The end-of-run summary MUST include `.mcp.json` in the `Created` or `Skipped (already present)` section when Claude is a target.
+  - The MCP-auto-register step MUST NOT run for Codex or Gemini targets — no `.mcp.json` MUST be created or modified for those targets alone.
+  - This installation step MAY be suppressed by `tnl init`'s `--no-mcp` or `--minimal` opt-out flag (defined in `cli-init.tnl`). When suppressed, the step is skipped and the summary reports `.mcp.json` under `Skipped (opt-out)` rather than `Created` or `Skipped (already present)`.
+  - When Codex or Gemini is a target (whether alone or alongside Claude), init MUST add a single summary warning line explaining that MCP registration is not automated for that agent and pointing to the manual config snippet users can paste into their user-scoped config.
+  - Tests MUST cover: `.mcp.json` written with expected shape when `--agent claude` + absent file; existing top-level fields preserved on merge; existing `mcpServers` entries preserved on merge (not overwritten); idempotent — second run with `mcpServers.tnl` present → skip; malformed JSON → stderr + summary warning, file unchanged; `.mcp.json` NOT written for `--agent codex` or `--agent gemini` alone; Codex/Gemini summary carries the manual-registration warning; Claude + Codex mixed target writes `.mcp.json` AND emits the Codex/Gemini warning.
+
+non-goals:
+  - Auto-registration for Codex (`~/.codex/config.toml`) — user-scoped, out of project init's responsibility.
+  - Auto-registration for Gemini (`~/.gemini/settings.json`) — same reasoning.
+  - Migration of existing `tnl` entries if their shape drifts from the template. Init respects pre-existing user-provided entries.
+  - Removing MCP entries (e.g., `tnl uninstall`) — deferred.
+  - Writing a user-scoped (global) Claude Code MCP config.
+  - A `--no-mcp` flag on init — MCP registration is always on for Claude targets.
+
+rationale:
+  Why Claude only, not Codex or Gemini: Claude Code supports project-
+  scoped MCP servers via `.mcp.json` at the repo root — a
+  project-scoped init command writing to a project file is in scope.
+  Codex and Gemini read MCP config from user-scoped files that
+  require user consent we haven't asked for. For those adopters,
+  init prints a hint instead.
+
+  Why idempotency checks `mcpServers.tnl` existence rather than
+  command equality: users may customize command or args (pin a
+  version, point at a fork). Respecting their edits matters more
+  than keeping the command string in template sync.
+
+  Why `npx -y @tnl/mcp-server` rather than `@tnl/cli tnl-mcp-server`:
+  aligns with implementation-v1.md §12.1 which commits to two
+  published packages. Until publication (B5), users running locally
+  can override the entry in `.mcp.json` by hand. After B5 the entry
+  works out of the box.

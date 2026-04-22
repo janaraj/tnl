@@ -1,0 +1,51 @@
+id: mcp-get-impacted-tnls
+title: MCP tool — get_impacted_tnls
+scope: feature
+owners: [@jana]
+paths: [src/mcp/tools/get-impacted.ts, src/mcp/server.ts]
+surfaces: [mcp:get_impacted_tnls]
+dependencies: [mcp-skeleton, impacted]
+
+intent:
+  MCP tool that wraps the A2 `getImpactedTnls` module. Given code paths
+  the agent intends to edit, returns the TNL units whose declared
+  `paths:` overlap with any of them, plus all `repo-wide` units. Agents
+  call this first when planning an edit, then fetch full content via
+  `retrieve_tnl(ids)` (next A3 TNL).
+
+behaviors:
+  - The tool module MUST export `createGetImpactedTool(options?: { cwd?: string }): McpTool` that constructs a configured `McpTool`. When `cwd` is not supplied, the tool MUST capture `process.cwd()` at construction time.
+  - The tool module MUST register a default-configured tool with the skeleton's `mcpTools` registry by side-effect on import, so `src/mcp/server.ts` attaches it with a single `import` line.
+  - The registered tool name MUST be `get_impacted_tnls` (matching implementation-v1.md §6.1).
+  - The tool's `inputSchema` MUST be a JSON Schema accepting `{ paths: string[] }` with `paths` required, `type: array`, `items: { type: 'string' }`, and `minItems: 1`.
+  - On valid arguments, the tool MUST invoke `getImpactedTnls(args.paths, { cwd })` and return the result serialized as JSON inside a single `{ type: 'text', text: <json> }` content entry. `isError` MUST NOT be set on success.
+  - The serialized JSON MUST be an array of objects, each containing exactly `id`, `title`, and `scope`. Absolute filesystem paths MUST NOT be included in the response — the agent identifies units by `id`.
+  - When `args` is not an object, when `args.paths` is missing, when it is not an array, when it is empty, or when any element is not a string, the tool MUST return `{ content: [{ type: 'text', text: <error message> }], isError: true }` without calling the impact module.
+  - When the impact module throws (e.g., no `tnl/` directory, malformed `.tnl`), the tool MUST return `{ content: [{ type: 'text', text: <error message> }], isError: true }` with the underlying error message included.
+  - The tool handler MUST NOT write to stdout.
+  - `src/mcp/server.ts` MUST add a side-effect import of the tool module so the tool registers when the server boots.
+  - Tests MUST cover: tool name and inputSchema shape; valid call returns serialized id/title/scope for matching units; response excludes absolute paths and `sourcePath`; `args.paths` missing → isError; `args.paths` wrong type → isError; `args.paths` empty → isError; non-string element → isError; `args` not an object → isError; underlying error (no `tnl/` dir) → isError; factory with injected `cwd` targets that directory; `mcpTools` default registry contains `get_impacted_tnls` after module import.
+
+non-goals:
+  - Glob patterns in query paths — inherits `impacted`'s non-goals.
+  - Matching against `surfaces:` — inherits A2 non-goals.
+  - Returning full TNL body — that is `retrieve_tnl`'s job (next A3 TNL).
+  - Pagination or result limiting — the `.tnl` file count is small by design.
+  - Authentication on the stdio transport.
+
+rationale:
+  Why return JSON inside a single text content entry rather than one
+  entry per unit: a single JSON blob parses trivially on the agent
+  side and keeps the response envelope small. Per-entry splitting
+  helps when content types vary, which isn't the case here.
+
+  Why drop filesystem paths from the response body: the agent's next
+  call is `retrieve_tnl(ids)` with `id`s, not paths. Leaking paths
+  ties the wire protocol to our filesystem layout (an internal
+  concern). If a path-based workflow becomes important later, we add
+  it back as an optional field.
+
+  Why a factory `createGetImpactedTool(options)` rather than a
+  pre-registered tool constant: tests need to inject a `cwd` pointing
+  at a temp dir. A factory gives clean injection without env-var
+  plumbing or global mutation.

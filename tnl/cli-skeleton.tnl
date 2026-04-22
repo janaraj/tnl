@@ -1,0 +1,43 @@
+id: cli-skeleton
+title: tnl CLI skeleton
+scope: feature
+owners: [@jana]
+paths: [src/index.ts, src/cli.ts]
+surfaces: [tnl]
+
+intent:
+  Entry point and dispatcher for the `tnl` CLI binary. Parses global flags,
+  reads the subcommand name, dispatches to the subcommand's handler, and
+  produces help and version output. This is the plumbing every future
+  subcommand hangs off. No subcommand body is implemented in this unit.
+
+behaviors:
+  - `src/index.ts` MUST be the thin bin entry wired through `package.json` `bin`; the testable dispatcher logic MUST live in `src/cli.ts` and be importable by tests.
+  - When invoked with `tnl --help`, `tnl -h`, or `tnl` with no arguments, the CLI MUST print a help screen listing registered subcommands and global flags, then exit 0.
+  - When invoked with `tnl --version` or `tnl -v`, the CLI MUST print the version from `package.json` and exit 0.
+  - When invoked with an unknown subcommand, the CLI MUST print an error naming the unknown command, suggest running `tnl --help`, and exit 2.
+  - When invoked with an unknown or malformed global flag, the CLI MUST print an error and exit 2.
+  - The CLI MUST expose a way for other modules to register subcommands (name, short description, handler) so that later A1 features attach without modifying the dispatch or argv-parsing logic in `src/cli.ts`. A single import line in `src/index.ts` per command module to trigger registration is acceptable.
+  - Registered subcommands MUST appear in the help-screen listing with their short description.
+  - The help screen MUST document the three global flags called out in A1: `--help`, `--version`, and `--agent <name>`.
+  - `--agent <name>` MUST be parsed without error on any invocation (before or after the subcommand) and the parsed value MUST be forwarded to the subcommand handler. Subcommands that do not consume it MUST ignore it silently.
+  - The CLI skeleton MUST NOT introduce any runtime dependency beyond Node's standard library — argv parsing is hand-rolled.
+  - Tests MUST cover: help output on `--help`, `-h`, and no-arg; version output on `--version` / `-v`; unknown-subcommand exit 2 with message; unknown-flag exit 2; a registered subcommand appears in help output with its description.
+
+non-goals:
+  - No subcommand body is implemented here (no init, resolve, verify, etc.).
+  - No color output, interactive prompts, or shell-completion scripts.
+  - No config-file loading — later surface.
+  - No per-subcommand flag parsing beyond recognizing the global `--agent`. Each subcommand parses its own flags in its handler.
+
+rationale:
+  Hand-rolled argv parsing rather than commander / yargs / cac: the skeleton
+  needs three flags and subcommand dispatch. A dependency adds a
+  maintenance and security surface that is not earned yet. When the flag
+  grammar outgrows hand-rolling, we reconsider.
+
+  `--agent` parsed globally but consumed only by `init`: listing it
+  per-command would force us to re-register it everywhere or hide it
+  from the top-level help. Parsing once and forwarding to the handler
+  lets `init` read it cleanly and non-consumers ignore it harmlessly.
+  The phase plan treats it as global for this reason.

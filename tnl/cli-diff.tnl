@@ -1,0 +1,58 @@
+id: cli-diff
+title: tnl diff — clause-level diff vs HEAD
+scope: feature
+owners: [@jana]
+paths: [src/commands/diff.ts, src/index.ts]
+surfaces: [tnl diff]
+dependencies: [cli-skeleton, parser]
+
+intent:
+  `tnl diff <file>` shows a clause-level, human-readable diff between a
+  `.tnl` file's working-tree version and its HEAD version in git.
+  Reviewers use it to see which clauses changed before approving a PR.
+  The tool reads the HEAD version via `git show` and parses both copies
+  via the A1 parser.
+
+behaviors:
+  - The command MUST be named `diff` and MUST be registered against the default registry exposed by `src/cli.ts`. `src/index.ts` MUST import the command module.
+  - The command MUST accept exactly one positional path argument. Zero or more than one positional paths MUST exit 2 with a usage message on stderr.
+  - The command MUST resolve the user-supplied path to an absolute path (relative paths resolved against the invocation CWD) for filesystem reads, and MUST compute a repo-relative path via `git rev-parse --show-toplevel` for the `git show` invocation.
+  - The command MUST read the working-tree content via `readFileSync` and the HEAD content via `git show HEAD:<repo-relative-path>` through `child_process.execFileSync`.
+  - When the working-tree file does not exist, the command MUST print an error to stderr and exit 2.
+  - When `git` is not available or the working directory is not inside a git repository (i.e., `git rev-parse --show-toplevel` fails), the command MUST print an error and exit 2.
+  - When the file does not exist in `HEAD` (newly added), the command MUST treat the HEAD side as empty and show every working-tree behavior clause as `ADDED`.
+  - When either side fails to parse, the command MUST print the parse error and exit 2.
+  - Behavior clauses MUST be compared by 1-based position (`L-N`). A position present only in the working tree is `ADDED`; a position present only in HEAD is `REMOVED`; a position present in both with different clause hashes is `MODIFIED`; identical hashes are silently unchanged.
+  - The human-readable stdout output MUST include: a header line with counts (`+A added, ~M modified, -R removed`); for each non-empty category an `ADDED:` / `REMOVED:` / `MODIFIED:` section. `ADDED` and `REMOVED` entries MUST show `L-N` and full clause text. `MODIFIED` entries MUST show `L-N`, a `before:` line (HEAD text), and an `after:` line (working-tree text). Sections with zero entries MUST be omitted.
+  - When no behavior clauses changed, the command MUST print a short summary stating the file is unchanged at the behavior level and exit 0.
+  - For the non-behavior zones, the command MUST emit one summary line each — for the machine zone, `intent`, `non-goals`, and `rationale` — noting `changed` or `unchanged` based on verbatim comparison of the section's text after whitespace normalization (for structured zones the comparison is structural equality). These summary lines MUST appear before the behavior-clause sections.
+  - The command MUST exit 0 whether or not there are differences — differences are informational, not a failure.
+  - The command MUST NOT introduce any runtime dependency beyond Node's standard library and modules already in the project.
+  - Tests MUST cover: unchanged file (no diffs) prints "unchanged at the behavior level"; added clause shown in `ADDED`; removed clause shown in `REMOVED`; modified clause shown in `MODIFIED` with `before:` and `after:`; newly-added file (not in HEAD) shows every working-tree clause as `ADDED`; file missing from working tree → exit 2; working-dir not inside a git repo → exit 2; malformed working-tree content → exit 2; zero positional args → exit 2 with usage; two positional args → exit 2 with usage; intent/non-goals/rationale/machine-zone change detected and reflected in the summary lines.
+
+non-goals:
+  - Diffing against arbitrary refs (`--since=<ref>`, `--against=<ref>`). A4 compares working tree to `HEAD` only.
+  - Unified-diff-style line-by-line output inside a modified clause. Clause bodies are short; full before/after is clearer than diff markers.
+  - Staged-vs-working or staged-vs-HEAD comparisons. Only working-tree-vs-HEAD in A4.
+  - Machine-readable (JSON) output — human-readable is the A4 deliverable.
+  - Reordering-aware matching. Position-based is the MVP; a later phase can add hash-index matching to detect swaps.
+  - Color output. Deferred.
+
+rationale:
+  Why shell out to `git show` rather than use a git library: one command,
+  stable across git versions, well understood. A library adds weight
+  for no benefit.
+
+  Why position-based clause matching: reordering is rare in practice;
+  authors edit clauses in place. Hash-based matching would detect
+  reorder swaps but lose the "same slot, different content" signal
+  reviewers want. Layer on hash matching later if reordering becomes
+  common.
+
+  Why full before/after on modified clauses rather than a unified diff:
+  clauses are one or two sentences. Line-level diffs add noise without
+  helping the reviewer understand the new contract.
+
+  Why summary lines for non-behavior zones rather than a full diff:
+  those are prose/list fields whose value comes from being read
+  whole. A one-line "changed" points the reviewer at the file.

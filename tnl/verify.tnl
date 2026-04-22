@@ -1,0 +1,67 @@
+id: verify
+title: tnl verify — structural and test-binding checks
+scope: feature
+owners: [@jana]
+paths: [src/verifier.ts, src/commands/verify.ts, src/index.ts]
+surfaces: [tnl verify]
+dependencies: [parser, resolve]
+
+intent:
+  `tnl verify` checks each TNL against the current filesystem and test
+  sources. Tier 1 confirms every `paths:` entry exists on disk and
+  every `dependencies:` entry points to a real TNL. Tier 2 opens the
+  file referenced by each `test-backed` clause and verifies the test
+  name string is present. The verifier does NOT execute tests —
+  execution is the user's existing CI. The verifier catches
+  structural drift: deleted paths, dangling dependencies, removed or
+  renamed tests.
+
+behaviors:
+  - The verifier module MUST expose `verifyTnl(filePath: string, options?: VerifyOptions): UnitVerifyResult` and `verifyAll(options?: VerifyOptions & { ids?: string[] }): UnitVerifyResult[]`. `VerifyOptions` MUST include `{ cwd?: string }`; when `cwd` is not supplied, both functions MUST use `process.cwd()`.
+  - `UnitVerifyResult` MUST have shape `{ id: string; sourcePath: string; checks: CheckResult[]; passed: number; failed: number; unchecked: number }`.
+  - `CheckResult` MUST have shape `{ kind: 'unit' | 'clause'; name: string; class?: ClauseClass; status: 'passed' | 'failed' | 'unchecked'; reason?: string }`. For `kind: 'clause'`, `name` MUST be the clause id (`L-N`) and `class` MUST be populated from the resolved class.
+  - The tier-1 `paths-exist` check MUST run once per TNL of scope `feature`. It MUST emit `passed` if every declared `paths:` entry resolves to a file or directory on disk (relative to `cwd`), or `failed` with a reason naming the missing path otherwise. `repo-wide` TNLs (which have no `paths:`) MUST skip this check entirely.
+  - The tier-1 `dependencies-resolve` check MUST run once per TNL that declares any `dependencies:`. It MUST emit `passed` if every declared dependency id corresponds to a file `<cwd>/tnl/<id>.tnl`, or `failed` naming the dangling id otherwise. TNLs with no `dependencies:` MUST skip this check.
+  - For each clause whose resolved class is `test-backed`, the verifier MUST open `testBinding.file` (resolved relative to `cwd`) and perform a literal-string search for `testBinding.name`. Found → `passed`. Not found → `failed` with reason `"declared test '<name>' not found in <file>"`. File missing → `failed` with reason `"test file <file> does not exist"`. Other read errors → `failed` with the underlying error message.
+  - Clauses of class `structural`, `semantic`, or `advisory` MUST emit `unchecked` with a reason noting no deterministic check applies in this version. Unchecked is not a failure.
+  - The CLI MUST register a `verify` subcommand against the default registry; `src/index.ts` MUST import the command module.
+  - `tnl verify` with no positional args MUST verify every `.tnl` file directly under `./tnl/` (non-recursive). Positional args MAY be TNL ids (resolved to `./tnl/<id>.tnl`) or filesystem paths to `.tnl` files; the CLI MUST accept a mix.
+  - When no `tnl/` directory exists and no positional args are provided, the CLI MUST print an error telling the user to run `tnl init` first and exit 2.
+  - The CLI's stdout MUST include one summary line per unit of form `<id>: <P> passed, <F> failed, <U> unchecked`, and for every failed check a detail line of form `  <name> (<class>) FAIL: <reason>` (the `(<class>)` segment MUST be omitted for unit-level checks `paths-exist` / `dependencies-resolve`). At the end the CLI MUST print an overall summary: `Summary: <T> TNLs verified. <C> checks, <F> failed, <U> unchecked.`
+  - The CLI MUST exit 2 if any check across any unit failed, else exit 0. Unchecked alone MUST NOT cause a non-zero exit.
+  - On parser/resolver failure for an individual TNL in batch mode, the CLI MUST emit a single `<id-or-path>: FAIL — <error message>` line on stderr and continue to the next TNL. Overall exit MUST be 2 if any unit errored.
+  - The verifier MUST NOT invoke an LLM, make network calls, execute tests, or introduce any runtime dependency beyond Node's standard library and modules already in the project.
+  - Tests MUST cover: `paths-exist` passes when all paths exist; `paths-exist` fails naming the missing path; `paths-exist` skipped for repo-wide; `dependencies-resolve` passes when all deps exist; `dependencies-resolve` fails naming a dangling id; `dependencies-resolve` skipped when no deps; test-binding passes when name is found in file; test-binding fails when name is not in file; test-binding fails when file missing; clauses of class `structural`/`semantic`/`advisory` emit `unchecked`; CLI `tnl verify` with no args verifies all; CLI accepts id and path positional mix; CLI exit 0 on all-passing; CLI exit 2 on any failure; malformed `.tnl` under `./tnl/` reported per-unit on stderr and exits 2; per-unit summary and per-failure line formatting; no `tnl/` + no args → exit 2 with init hint.
+
+non-goals:
+  - Executing tests — the user's test runner owns that.
+  - AST / tree-sitter checks — post-A5.
+  - Route-handler mapping.
+  - Symbol presence.
+  - Per-clause text-predicate annotations.
+  - Semantic (tier 3) adjudication.
+  - `--verbose` / `--quiet` flags, color output, JSON output — deferred; one compact format.
+  - Caching verify results across runs.
+
+rationale:
+  Why not execute tests: CI already does that. Duplicating it blurs
+  responsibility and slows `tnl verify` proportionally to the test
+  suite. The drift we want to catch is binding-level — did someone
+  rename or delete the test the clause points at? A substring search
+  against the test file catches that cheaply.
+
+  Why substring search rather than AST inside the test file: same
+  reason the outer design avoids tree-sitter — the check is "does
+  the name appear verbatim in the file." Language-agnostic; works
+  for Jest `it(...)`, pytest function names, Go `Test...` functions,
+  RSpec `describe(...)`, or any other convention that spells the
+  name as a literal.
+
+  Why unchecked is not a failure: a TNL can legitimately have
+  structural, advisory, or semantic clauses with no deterministic
+  check in v1. Surfacing them as unchecked keeps output honest
+  without painting CI red.
+
+  Why the CLI accepts both ids and paths: agents typically have ids
+  in hand (from `get_impacted_tnls` or `retrieve_tnl`); humans type
+  paths. Accepting both removes a friction point.

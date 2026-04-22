@@ -1,0 +1,51 @@
+id: cli-test-plan
+title: tnl test-plan — list tests required by test-backed clauses
+scope: feature
+owners: [@jana]
+paths: [src/commands/test-plan.ts, src/index.ts]
+surfaces: [tnl test-plan]
+dependencies: [cli-skeleton, parser, resolve]
+
+intent:
+  `tnl test-plan <unit>` prints the list of tests that `test-backed`
+  clauses in the named unit name. Useful for authors and CI pipelines
+  that want to know "which tests back this TNL?" without opening the
+  file. Output is machine-parseable (one test binding per line) so it
+  composes with shell pipelines.
+
+behaviors:
+  - The command MUST be named `test-plan` and MUST be registered against the default registry exposed by `src/cli.ts`. `src/index.ts` MUST import the command module.
+  - The command MUST accept exactly one positional argument — either a TNL id (resolved to `<cwd>/tnl/<id>.tnl`) or a path to a `.tnl` file. Zero or more than one positional args MUST exit 2 with a usage message on stderr.
+  - The command MUST parse the target TNL via `parseTnlFile`. Parser errors MUST be printed to stderr and the command MUST exit 2.
+  - The command MUST classify each clause via `classifyClause`. Classification errors (an unclassifiable clause) MUST be printed to stderr and the command MUST exit 2, matching the strictness of `tnl resolve`.
+  - For each clause whose resolved class is `test-backed`, the command MUST print one line to stdout of exact form `L-<N> <file>::<name>` where `L-<N>` is the clause id (1-based position) and `<file>` / `<name>` come from the clause's `testBinding`.
+  - Clauses of class `structural`, `semantic`, or `advisory` MUST NOT appear in the output.
+  - When the unit has no `test-backed` clauses, the command MUST print a single line `No test-backed clauses in <id>.` to stdout and exit 0 — empty output would be ambiguous ("did it work?").
+  - The command MUST exit 0 on success regardless of whether any test-backed clauses were found.
+  - The command MUST NOT introduce any runtime dependency beyond Node's standard library and modules already in the project.
+  - Tests MUST cover: command registered in default registry; id argument resolves to `./tnl/<id>.tnl`; relative and absolute path arguments accepted; `test-backed` clauses emit one line each with exact `L-N <file>::<name>` format; `structural` / `semantic` / `advisory` clauses are excluded from output; unit with zero `test-backed` clauses prints the "No test-backed clauses" line and exits 0; zero positional args → exit 2; two positional args → exit 2; missing file → exit 2 with parse error on stderr; malformed TNL → exit 2 with parse error on stderr; output order matches clause order in the source file.
+
+non-goals:
+  - Running the tests — the user's test runner's job; `test-plan` only lists them.
+  - JSON output mode — plain text, one binding per line, is designed for pipe composition.
+  - Walking `dependencies:` transitively — the command prints only the named unit's own test-backed clauses.
+  - Grouping / sorting beyond source order (which is clause order).
+  - Filtering by attribute or class — the command's role is "emit test plan," not arbitrary clause query.
+  - Detecting when a referenced test file exists / passes — that's `tnl verify`'s job.
+
+rationale:
+  Why a dedicated subcommand rather than folding into `tnl verify`:
+  `verify` answers "does the contract still hold?"; `test-plan`
+  answers "what should my test runner run?" Different concerns,
+  different consumers (`verify` for CI gates, `test-plan` for test
+  runner integration or authors auditing their coverage).
+
+  Why print a message on zero matches rather than empty output:
+  empty output is ambiguous — the user can't tell whether the
+  command succeeded or silently errored. An explicit "No
+  test-backed clauses" line is unambiguous and still
+  programmatically detectable (exit 0, one-line stdout).
+
+  Why accept both id and file path: same shape as `tnl verify` and
+  `tnl diff` — agents typically hold ids, humans type paths. One
+  subcommand, two ergonomic entry points.

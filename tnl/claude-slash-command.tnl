@@ -1,0 +1,47 @@
+id: claude-slash-command
+title: Claude Code /tnl-feature skill installation
+scope: feature
+owners: [@jana]
+paths: [src/commands/init.ts]
+surfaces: [tnl init]
+dependencies: [cli-init]
+
+intent:
+  When `tnl init` runs against a project where Claude Code is a target
+  agent, it writes the `/tnl-feature` slash command to
+  `.claude/commands/tnl-feature.md` in addition to the CLAUDE.md
+  stanza. The skill packages the TNL workflow (scope → clarify →
+  propose → wait → implement → self-attest) as a single
+  user-invocable command. The CLAUDE.md stanza references the skill
+  by name so agents and users discover it.
+
+behaviors:
+  - `src/commands/init.ts` MUST contain a fixed string constant `TNL_FEATURE_SKILL_TEMPLATE` whose body is the markdown content for `.claude/commands/tnl-feature.md`. The content MUST include a YAML frontmatter `description:` line, a `$ARGUMENTS` reference, and numbered steps covering scope, clarify, propose, wait-for-approval, implement, and self-attest.
+  - When `tnl init` determines Claude is a target agent (either `.claude/` is present or `--agent claude` was passed), init MUST write `<cwd>/.claude/commands/tnl-feature.md` with `TNL_FEATURE_SKILL_TEMPLATE` content. It MUST create `.claude/commands/` if absent.
+  - If `.claude/commands/tnl-feature.md` already exists, init MUST leave the file untouched and report the skip.
+  - This installation step MAY be suppressed by `tnl init`'s `--no-skill` or `--minimal` opt-out flag (defined in `cli-init.tnl`). When suppressed, the step is skipped and the summary reports `.claude/commands/tnl-feature.md` under `Skipped (opt-out)` rather than `Created` or `Skipped (already present)`.
+  - The skill write MUST happen only for Claude targets. When the only target is `codex` or `gemini`, init MUST NOT create `.claude/commands/tnl-feature.md`.
+  - The CLAUDE.md stanza appended by init MUST reference the `/tnl-feature` command by name when Claude is a target. Other agents' stanzas MUST NOT reference it. The stanza differentiation MAY be done via separate templates or a conditional addition to the base stanza.
+  - The end-of-run summary MUST include `.claude/commands/tnl-feature.md` in the `Created` or `Skipped (already present)` section when Claude is a target.
+  - Tests MUST cover: `.claude/commands/tnl-feature.md` written when `--agent claude` is passed and the file is absent; `.claude/commands/` directory auto-created; existing skill file → skipped and reported; skill NOT written when `--agent codex` or `--agent gemini`; Claude stanza contains `/tnl-feature`; non-Claude stanzas do NOT contain `/tnl-feature`; end-of-run summary includes the skill path on first run.
+
+non-goals:
+  - Iterating on the `/tnl-feature` step text beyond the initial template — content tweaks over time are edits to this TNL, not new TNLs.
+  - Installing or configuring the PreToolUse hook — next A6 TNL.
+  - Packaging a Claude Code plugin — deferred to B4.
+  - Publishing the skill to a registry or marketplace.
+  - Skills for other agents (Codex, Gemini) — those surfaces don't expose slash commands in v1 scope.
+
+rationale:
+  Why embed the skill template as a string constant rather than bundle
+  a separate template file: matches the existing `WORKFLOW_TEMPLATE`
+  pattern in the same module. When the template count outgrows
+  inline constants, we switch to a bundled `templates/` directory.
+
+  Why tie skill installation to the Claude target only: agents without
+  slash-command surfaces can't use the file. Installing it for them
+  would be dead weight.
+
+  Why CLAUDE.md must reference the skill: the skill is user-invoked
+  via `/tnl-feature`. Without a pointer in CLAUDE.md, agents and
+  users won't discover it.

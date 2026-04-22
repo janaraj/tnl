@@ -1,0 +1,61 @@
+id: mcp-trace
+title: MCP tool — trace
+scope: feature
+owners: [@jana]
+paths: [src/mcp/tools/trace.ts, src/mcp/server.ts]
+surfaces: [mcp:trace]
+dependencies: [mcp-skeleton]
+
+intent:
+  MCP tool that lets agents record and read session-level events
+  documenting how TNL was used — retrievals, citations, and
+  self-attestations. Called with an `event`, it appends to the
+  session's log. Called without one, it returns the recorded events
+  for the session. Storage is in-memory per server process; persistence
+  and the `tnl trace` CLI query side are deferred to a later phase.
+
+behaviors:
+  - The tool module MUST export `createTraceTool(): McpTool`. No configuration is needed in A3 — the store is an in-memory `Map<string, Event[]>` scoped to the server process.
+  - The tool module MUST register a default-configured tool with `mcpTools` by side-effect on import, so `src/mcp/server.ts` attaches it with a single `import` line.
+  - The registered tool name MUST be `trace` (matching implementation-v1.md §6.1).
+  - The tool's `inputSchema` MUST accept `{ session_id: string, event?: { type: string, data?: unknown } }` with `session_id` required and a `minLength: 1`.
+  - When called WITHOUT an `event` field, the tool MUST return `{ content: [{ type: 'text', text: <json> }] }` where the JSON is `{ session_id, events }` and `events` is the chronological list of events previously recorded for that `session_id` (empty array if none).
+  - When called WITH an `event` field, the tool MUST append the event to the session's log and return `{ content: [{ type: 'text', text: <json> }] }` where the JSON is `{ session_id, recorded: true, count: <new total for this session> }`.
+  - Each stored event MUST have shape `{ type: string, data?: unknown, timestamp: string }` where `timestamp` is server-generated ISO 8601 UTC at record time. A caller-supplied `timestamp` inside the event body MUST be ignored (the server's stamp wins). Additional fields on the caller's event object MUST be dropped — only `type`, `data` (when present), and the server-generated `timestamp` are stored.
+  - When `args` is not an object, when `session_id` is missing / not a string / empty, when `event` is present but not an object, or when `event.type` is missing / not a string, the tool MUST return `{ content: [...], isError: true }` and MUST NOT mutate any state.
+  - Events from distinct `session_id` values MUST be isolated — a record to session A MUST NOT appear in a read of session B.
+  - Events MUST persist for the lifetime of the server process only. Persistence across restarts is explicitly deferred.
+  - The tool handler MUST NOT write to stdout.
+  - `src/mcp/server.ts` MUST add a side-effect import of the tool module.
+  - Tests MUST cover: tool name and inputSchema; record-then-read round trip for a single session; unknown session_id returns empty events; multiple events preserve append order; timestamp is server-generated and in ISO 8601 format; caller-supplied `timestamp` in the event body is ignored; two sessions are isolated; arg validation failures (not-object / session_id missing / session_id wrong type / session_id empty / event not object / event.type missing / event.type wrong type) → isError; state is not mutated on validation failure; default registry contains `trace` after module import.
+
+non-goals:
+  - Persistence across server process restarts — deferred.
+  - The `tnl trace` CLI query side — deferred until persistence lands.
+  - Automatic recording of `get_impacted_tnls` / `retrieve_tnl` invocations — in A3 the agent decides what to record via explicit `trace` calls. Auto-recording may land later when the event schema settles.
+  - Cross-session query (e.g., "all sessions since git ref X") — out of scope.
+  - Maximum event size or rate limiting — A3 accepts what the agent sends.
+  - Event-schema validation beyond `type: string, data?: unknown` — richer schemas land when the CLI query side forces them.
+
+rationale:
+  Why a single polymorphic tool (record-or-read based on `event`
+  presence) rather than two tools (`trace_record` / `trace_read`):
+  the spec names exactly one tool called `trace`. The read/write
+  distinction is implicit in the presence of `event`. Splitting into
+  two tools adds surface area without clarifying the model.
+
+  Why in-memory only in A3: the authorship side (A4) and the CLI
+  query side (later) will shape what persistent storage needs. Picking
+  a format now risks two migrations. Keeping A3 in-memory lets the
+  storage decision happen once, when persistence is actually needed.
+
+  Why the server MUST generate timestamps: trust. If the agent chose
+  timestamps, event ordering could be manipulated. A server-generated
+  ISO timestamp is monotonic and credible.
+
+  Why the agent records events explicitly rather than the server
+  auto-recording tool calls: the observability signal we care about
+  is *citations* and *self-attestations*, which only the agent knows.
+  Auto-recording retrievals is easy but doesn't capture the signal
+  that matters. Explicit record-by-the-agent is aligned with what we
+  actually want to measure.

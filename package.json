@@ -1,0 +1,32 @@
+{
+  "name": "@tnl/cli",
+  "version": "0.0.1",
+  "description": "TNL — Typed Natural Language: structured English contracts for coding agents.",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "tnl": "./dist/index.js",
+    "tnl-mcp-server": "./dist/mcp/server.js"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src tests"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.4.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  }
+}

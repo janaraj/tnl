@@ -1,0 +1,32 @@
+id: workflow
+title: Baseline coding principles
+scope: repo-wide
+owners: [@jana]
+
+intent:
+  Baseline workflow principles that apply to every coding session in this
+  repository. These clauses are read at session start regardless of the
+  task. They describe how work is done here — not what is being built —
+  and address recurring failure modes in agent-driven development.
+
+behaviors:
+  - When a request admits more than one reasonable interpretation, the agent MUST ask clarifying questions before proposing a TNL or writing code. The agent MUST NOT silently pick one interpretation and proceed.
+  - The agent MUST write the minimum code that satisfies the request. Abstractions, helpers, generic utilities, and configuration hooks MUST NOT be introduced unless the current task requires them — three similar lines beat a premature abstraction. Do not generalize for hypothetical future needs.
+  - The agent MUST modify only code directly necessary for the requested change. Refactoring, renaming, or cleaning up neighboring code MUST NOT happen on the way by. Adjacent issues MUST be surfaced separately, not bundled.
+  - Before writing code, the agent MUST translate the request into concrete, verifiable targets: specific file paths, function signatures, test names, or TNL clauses. Fuzzy requirements MUST NOT be implemented directly. If targets cannot be named, the agent MUST ask until they can.
+  - When adding code to an existing codebase, the agent MUST first identify the conventions in use (naming, error handling, test structure, file organization) and follow them. New patterns MAY be introduced only when no existing pattern fits, and MUST be surfaced explicitly rather than introduced silently.
+  - At the end of every task that produced code changes, the agent MUST list each MUST clause from the active TNL files (this file plus any feature TNLs touched) and state for each: (a) satisfied — by which file/function/test, (b) could not satisfy — why, or (c) did not apply — why. The list MUST be exhaustive; silent omission counts as a failure.
+
+non-goals:
+  - These principles do not override feature-specific TNL clauses. When a feature TNL states a MUST that conflicts with or narrows one of these, the feature TNL takes precedence.
+  - These principles are a floor, not a ceiling. They do not enumerate every good engineering practice — only the ones that address recurring failure modes.
+  - Design principles (DRY, SOLID, composition patterns) belong in project-specific documentation, not here. This file governs session workflow, not code architecture.
+
+rationale:
+  Each behavior targets a specific failure pattern observed in prior sessions:
+    - Silent interpretation of ambiguous requests leads to the wrong feature shipped fast.
+    - Overengineering produces code that must be maintained forever for a problem that never materializes.
+    - Incidental refactoring bundles unreviewed changes into a focused diff, hiding what actually changed.
+    - Fuzzy requirements produce fuzzy implementations with edge cases silently dropped.
+    - Introducing new patterns silently creates invisible architectural drift — the codebase gains a second way to do everything, and no one reviewed the split.
+    - Exhaustive self-attestation forces the agent to reconcile "what the contract required" against "what I actually wrote," which is where misses have historically been caught.

@@ -1,0 +1,61 @@
+id: approve-tnl-diff
+title: MCP tool — approve_tnl_diff
+scope: feature
+owners: [@jana]
+paths: [src/mcp/tools/approve.ts, src/mcp/server.ts]
+surfaces: [mcp:approve_tnl_diff]
+dependencies: [propose-tnl-diff, resolve]
+
+intent:
+  MCP tool that applies a previously-staged proposal: writes each staged
+  TNL file to `tnl/<id>.tnl`, generates the sidecar via the A2 resolver,
+  and removes the staging record so the diff_id can't be re-applied.
+  Agents call this after human approval of a `propose_tnl_diff` result.
+
+behaviors:
+  - The tool module MUST export `createApproveTnlDiffTool(options?: { cwd?: string }): McpTool`. When `cwd` is not supplied, the tool MUST capture `process.cwd()` at construction time.
+  - The tool module MUST register a default-configured tool with `mcpTools` by side-effect on import, so `src/mcp/server.ts` attaches it with a single `import` line.
+  - The registered tool name MUST be `approve_tnl_diff` (matching implementation-v1.md §6.1).
+  - The tool's `inputSchema` MUST accept `{ diff_id: string }` with `diff_id` required and non-empty.
+  - When `args` is not an object, when `diff_id` is missing / not a string / empty, the tool MUST return `{ content: [...], isError: true }` without touching the filesystem.
+  - The tool MUST call `readStagedDiff({ cwd }, diff_id)`. When it returns `null`, the tool MUST return `isError: true` with a message naming the missing `diff_id`, and no files MUST be written.
+  - Before writing any file, the tool MUST re-validate each change against the current filesystem: for `action: 'create'`, `tnl/<id>.tnl` MUST still NOT exist; for `action: 'update'`, it MUST still exist. Any revalidation failure MUST return `isError: true`, MUST NOT write any target file, and MUST leave the staging record in place so the agent can revise and re-apply.
+  - For each change, the tool MUST write `content` to `<cwd>/tnl/<change.id>.tnl`, then call `resolveTnlFile` on that path and write the resulting sidecar to `<cwd>/tnl/.resolved/<change.id>.meta.json`. The `.resolved/` directory MUST be created if absent.
+  - After all changes are written and their sidecars generated, the tool MUST remove the staging record at `<cwd>/tnl/.staging/<diff_id>.json` — the diff_id is consumed. Attempting to approve the same `diff_id` a second time MUST fail at the `readStagedDiff` step.
+  - If writing a target file fails after one or more earlier changes were already written, the tool MUST return `isError: true` naming the failing change. The tool MUST NOT attempt to roll back already-written files — partial state is surfaced honestly, and the staging record MUST remain so the user can inspect and retry.
+  - If `resolveTnlFile` fails on a freshly-written file, the tool MUST return `isError: true` naming the failure. The target file stays written, the staging record stays, and subsequent sidecars for remaining changes MUST NOT be generated.
+  - If removing the staging record itself fails after the apply succeeded, the tool MUST return `isError: true` naming the cleanup failure so the user knows the filesystem state is inconsistent.
+  - On success, the tool MUST return `{ content: [{ type: 'text', text: <json> }] }` where the JSON is `{ diff_id, applied: true, changes: Array<{ id, action, path, sidecar_path }> }`. `isError` MUST NOT be set.
+  - The tool handler MUST NOT write to stdout.
+  - `src/mcp/server.ts` MUST add a side-effect import of the tool module.
+  - Tests MUST cover: tool name and inputSchema; unknown `diff_id` → isError; valid create writes `tnl/<id>.tnl` + `tnl/.resolved/<id>.meta.json`, returns applied summary, removes staging record; valid update overwrites the existing file and regenerates sidecar; multi-change proposal applies all changes and records them in the response; revalidation failure at approve time (create: file appeared since propose) → isError, no writes, staging record preserved; revalidation failure (update: file deleted since propose) → same; double-approve of the same diff_id → first succeeds, second fails with unknown-diff-id; missing/empty/wrong-type `diff_id` → isError; args not an object → isError; default registry contains `approve_tnl_diff` after module import.
+
+non-goals:
+  - Partial rollback on mid-stream write failure — honest partial state is the A4 MVP. Transactional apply can land later if operational evidence shows it matters.
+  - CLI equivalent (`tnl approve`) — A4 exposes approve via MCP only.
+  - Signature verification or caller authentication — stdio-local; trust boundary is the OS.
+  - Re-applying a staged diff with `--force` or similar bypass — approving twice is always an error.
+  - Emitting verification results — A5's `verify` owns that.
+  - Archiving consumed staging records — A4 deletes them. Audit lives in git via the `tnl/<id>.tnl` commit.
+
+rationale:
+  Why re-validate at approve time: the filesystem can change between
+  propose and approve (another agent creates the file; a human
+  deletes it). Approving without revalidation would silently clobber.
+
+  Why no rollback on mid-stream write failure: filesystem writes to a
+  local repo rarely fail partway; when they do, attempting rollback
+  multiplies the failure modes (what if rollback itself fails?).
+  Reporting the partial state and leaving the staging record lets a
+  human inspect and reconcile.
+
+  Why delete the staging record on success: re-approving a consumed
+  diff_id would either duplicate writes (bad) or silently no-op
+  (ambiguous). Erroring on double-approve makes the lifecycle clear:
+  propose → approve → done.
+
+  Why always regenerate the sidecar on approve: the sidecar is a
+  function of the content. Writing content without updating the
+  sidecar leaves them drifted — exactly the failure mode TNL is
+  built to prevent. The phase-plan line "writes file, triggers
+  `tnl resolve`" is satisfied in one pass per change.

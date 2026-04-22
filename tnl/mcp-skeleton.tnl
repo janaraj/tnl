@@ -1,0 +1,58 @@
+id: mcp-skeleton
+title: MCP server skeleton
+scope: feature
+owners: [@jana]
+paths: [src/mcp/server.ts, src/mcp/tools.ts, package.json]
+surfaces: [tnl-mcp-server]
+dependencies: [cli-skeleton]
+
+intent:
+  Stdio JSON-RPC MCP server process that exposes TNL operations as tools
+  to MCP-capable coding agents (Claude Code, Codex, Gemini CLI). This
+  TNL covers the skeleton only — process entry, protocol wiring via
+  `@modelcontextprotocol/sdk`, and a tool-registration surface that
+  individual A3 tools (`get_impacted_tnls`, `retrieve_tnl`, `trace`)
+  hang off. No tool bodies are defined here.
+
+behaviors:
+  - `src/mcp/server.ts` MUST be the bin entry for `tnl-mcp-server`, declared in `package.json` `bin` resolving to `dist/mcp/server.js`.
+  - `package.json` MUST declare `@modelcontextprotocol/sdk` as a runtime dependency. No other new runtime dependencies MAY be introduced in this unit.
+  - `src/mcp/tools.ts` MUST expose an `McpTool` interface with fields `{ name: string; description: string; inputSchema: Record<string, unknown>; handler: (args: unknown) => Promise<McpToolResult> | McpToolResult }` and an `McpToolResult` interface with fields `{ content: Array<{ type: 'text'; text: string }>; isError?: boolean }`.
+  - `src/mcp/tools.ts` MUST expose a default registry `mcpTools: Map<string, McpTool>` so future A3 tools attach via `mcpTools.set(...)` without modifying the server's dispatch wiring.
+  - `src/mcp/tools.ts` MUST expose `handleListTools(registry?: Map<string, McpTool>)` returning `{ tools: [...] }` where each entry carries `name`, `description`, and `inputSchema` from its registration. When no registry is passed, the default `mcpTools` is used.
+  - `src/mcp/tools.ts` MUST expose `handleCallTool(request, registry?)` that looks up `request.params.name`, invokes its handler with `request.params.arguments`, awaits the result, and returns the `McpToolResult`.
+  - Unknown tool names in `handleCallTool` MUST return `{ content: [{ type: 'text', text: <message naming the unknown tool> }], isError: true }`. Exceptions thrown from a registered handler MUST be caught and converted to `{ content: [{ type: 'text', text: <exception message> }], isError: true }`. Exceptions MUST NOT escape `handleCallTool`.
+  - `src/mcp/server.ts` MUST instantiate a `Server` from `@modelcontextprotocol/sdk` named `tnl` at the package.json version, register `ListToolsRequestSchema` → `handleListTools` and `CallToolRequestSchema` → `handleCallTool`, and connect via `StdioServerTransport` when run as a process.
+  - `src/mcp/server.ts` MUST import individual tool modules by side-effect for registration, mirroring the CLI skeleton pattern. A1-era CLI commands MUST NOT be imported by the MCP server bin (the two bins are independent entry points).
+  - Tool handlers MUST NOT write to `stdout` directly. All tool output MUST be conveyed through the returned `McpToolResult`. `stderr` MAY be used for logs.
+  - Tests MUST cover: `mcpTools` registration round-trip; `handleListTools` returns name/description/inputSchema for each registered tool; `handleListTools` returns an empty `tools` array when no tools are registered; `handleCallTool` dispatches to the matching handler and returns its result; unknown tool name yields `isError: true` with the unknown name surfaced in the message; a synchronously-throwing handler is converted to `isError: true` with the exception message; an async-rejecting handler is likewise converted to `isError: true`.
+
+non-goals:
+  - The three tools themselves (`get_impacted_tnls`, `retrieve_tnl`, `trace`) land in their own A3 TNLs.
+  - Authorship tools (`propose_tnl_diff`, `approve_tnl_diff`) — A4.
+  - Resource and prompt MCP surfaces — only `tools` is exposed in v1.
+  - Streaming responses — A3 tools return synchronously (or via a single awaited promise).
+  - Session persistence beyond a single `tnl-mcp-server` process lifetime.
+  - Authentication / authorization — the server is stdio-local only.
+  - JSON Schema validation of tool arguments inside the skeleton; each tool is responsible for validating its own `arguments` shape.
+
+rationale:
+  Why mirror the CLI's registry-plus-side-effect-import pattern: the
+  architecture is identical (a dispatcher + a set of named handlers).
+  Using the same shape twice keeps the mental model cheap and the file
+  layout predictable.
+
+  Why catch handler exceptions and return `isError: true` rather than
+  letting them propagate: MCP semantics expect tools to fail softly via
+  the result envelope. Escaping exceptions break the JSON-RPC session,
+  which is worse UX than a structured error return.
+
+  Why prohibit direct `stdout` writes in handlers: the stdio transport
+  uses stdout as the JSON-RPC channel. Any stray stdout output corrupts
+  the framing and kills the client connection.
+
+  Why two independent bins (`tnl` and `tnl-mcp-server`) rather than a
+  `tnl mcp serve` subcommand: the MCP bin is invoked by agent configs
+  (Claude Code's `.mcp.json`, Codex config) which expect a bin path,
+  not a subcommand. Keeping them separate also keeps `dist/index.js`
+  free of MCP SDK imports for CLI users who never run the server.

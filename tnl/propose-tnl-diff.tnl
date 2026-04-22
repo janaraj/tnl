@@ -1,0 +1,68 @@
+id: propose-tnl-diff
+title: MCP tool — propose_tnl_diff
+scope: feature
+owners: [@jana]
+paths: [src/mcp/tools/propose.ts, src/staging.ts, src/mcp/server.ts]
+surfaces: [mcp:propose_tnl_diff]
+dependencies: [mcp-skeleton, parser]
+
+intent:
+  MCP tool by which an agent submits a proposed TNL change — a batch of
+  creates and updates — for human review. The server validates each
+  entry parses and that id/filename/action constraints hold, then
+  stages the proposal to `tnl/.staging/<diff_id>.json` and returns the
+  `diff_id` for later `approve_tnl_diff` consumption. Filesystem
+  staging lets propose and approve straddle separate MCP sessions.
+
+behaviors:
+  - The tool module MUST export `createProposeTnlDiffTool(options?: { cwd?: string }): McpTool`. When `cwd` is not supplied, the tool MUST capture `process.cwd()` at construction time.
+  - The tool module MUST register a default-configured tool with `mcpTools` by side-effect on import, so `src/mcp/server.ts` attaches it with a single `import` line.
+  - The registered tool name MUST be `propose_tnl_diff` (matching implementation-v1.md §6.1).
+  - The tool's `inputSchema` MUST accept `{ intent: string, changes: Array<{ id: string, action: 'create' | 'update', content: string }> }` with `intent` a non-empty string and `changes` a non-empty array.
+  - For each `change`, the tool MUST validate: the `content` parses via `parseTnl` without error when treated as the file at `tnl/<id>.tnl`; for `action: 'create'`, no file exists at `<cwd>/tnl/<id>.tnl`; for `action: 'update'`, a file exists at `<cwd>/tnl/<id>.tnl`. Any validation failure MUST return `{ content: [...], isError: true }` with a message naming the failing change and reason, and the tool MUST NOT stage anything.
+  - All `change.id` values within a single proposal MUST be unique. Duplicate ids MUST return `isError: true` without staging.
+  - `change.id` MUST match the parser's kebab-case format (`^[a-z][a-z0-9-]*$`). IDs containing path separators or `..` MUST be rejected.
+  - A staging record MUST be written to `<cwd>/tnl/.staging/<diff_id>.json` where `diff_id` is a server-generated 16-hex-char random id (8 bytes of `crypto.randomBytes`). The `.staging/` directory MUST be created if absent.
+  - The staging record JSON MUST contain exactly: `diff_id` (string), `intent` (string), `created_at` (ISO 8601 UTC), `changes` (the validated array verbatim).
+  - On success, the tool MUST return `{ content: [{ type: 'text', text: <json> }] }` where the JSON is `{ diff_id, intent, change_count }` — small enough for the agent to echo back. `isError` MUST NOT be set.
+  - The staging store module (`src/staging.ts`) MUST expose `stageDiff(options: { cwd: string }, proposal: { intent: string, changes: Change[] }): Promise<Staged>` and `readStagedDiff(options: { cwd: string }, diff_id: string): Promise<Staged | null>` as the shared surface for this tool and the next-TNL `approve_tnl_diff`. `Staged` MUST have shape `{ diff_id, intent, created_at, changes }`. `readStagedDiff` MUST return `null` (not throw) when the diff_id has no staging file.
+  - When `args` is not an object, when `intent` is missing / not a string / empty, when `changes` is missing / not an array / empty, when any `change` is not an object, when `change.id` is missing / not a string, when `change.action` is neither `'create'` nor `'update'`, or when `change.content` is missing / not a string, the tool MUST return `isError: true` without writing any file.
+  - Filesystem errors other than "already exists" and "not found" (e.g., permission denied) MUST surface as `isError: true` with the underlying error message.
+  - The tool handler MUST NOT write to stdout.
+  - The tool MUST NOT write any `tnl/<id>.tnl` file. Only the staging record at `tnl/.staging/<diff_id>.json` is created. Target files are written later by `approve_tnl_diff`.
+  - `src/mcp/server.ts` MUST add a side-effect import of the tool module.
+  - Tests MUST cover: tool name and inputSchema; valid `create` returns a 16-hex `diff_id` and stages a file at the expected path; valid `update` stages without touching the existing file; content parse failure → isError; content id vs declared id mismatch → isError; `action: 'create'` when file already exists → isError; `action: 'update'` when file absent → isError; duplicate ids within one proposal → isError; invalid `action` value → isError; `change.id` path-traversal / non-kebab → isError; `args` / `intent` / `changes` / change-shape validation failures → isError; staging record structure matches `Staged`; `readStagedDiff` returns the staged record; `readStagedDiff` for an unknown id returns `null`; diff_ids unique across calls; on any validation failure the tool writes no staging file and no target tnl file; default registry contains `propose_tnl_diff` after module import.
+
+non-goals:
+  - Content diff computation (line-by-line) — that is `tnl diff`'s job (later A4 TNL).
+  - Writing the target `tnl/<id>.tnl` file — that is `approve_tnl_diff`'s job. Propose only stages.
+  - Removing or archiving existing TNL units (no `action: 'delete'` in v1). Deletion is deferred.
+  - Cross-unit dependency validation beyond parser-level structural rules.
+  - Semantic validation of clause content.
+  - Garbage collection of stale staging records — A4 writes them; later phases prune.
+
+rationale:
+  Why filesystem staging rather than in-memory: the typical flow is
+  agent proposes → human reviews → agent or human calls approve. That
+  can straddle MCP session boundaries (server restart, different
+  agent invocation). Filesystem persists through all of those.
+
+  Why an 8-byte (16 hex char) random diff_id: short enough to echo in
+  chat, long enough to avoid collisions in practice (2^64 entropy).
+  UUIDs are noisier visually for no real benefit at this scale.
+
+  Why fail-fast on any single invalid change rather than staging the
+  valid ones: a proposal is a unit. Staging a partial set creates an
+  ambiguous state the human can't easily review. All-or-nothing keeps
+  the review surface honest.
+
+  Why the MCP signature diverges slightly from the spec's
+  `propose_tnl_diff(intent, impacted_ids)`: the spec's `impacted_ids`
+  carries only ids; the server has no way to write content it was
+  never given. Our `changes` array subsumes both the ids and the
+  actual new content. The `intent` string is preserved.
+
+  Why validate content via `parseTnl` with the synthetic `tnl/<id>.tnl`
+  path: lets the parser enforce id-vs-filename match (one of its
+  MUSTs) at propose time, catching mismatched declared/content ids
+  with a single call instead of two separate checks.

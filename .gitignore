@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+*.log
+.env
+.env.local
+.DS_Store
+.vscode/
+
+# Transient TNL state
+tnl/.staging/
+
+# Claude Code per-user settings (shared skill stays committed)
+.claude/settings.local.json
+

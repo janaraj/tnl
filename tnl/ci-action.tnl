@@ -1,0 +1,47 @@
+id: ci-action
+title: GitHub Actions workflow generator
+scope: feature
+owners: [@jana]
+paths: [src/commands/init.ts]
+surfaces: [tnl init]
+dependencies: [cli-init, verify]
+
+intent:
+  When `tnl init` runs, it writes a GitHub Actions workflow at
+  `.github/workflows/tnl-verify.yml` that runs `tnl verify` on every
+  push and pull request. Adopters get CI enforcement out of the box
+  without hand-copying a workflow template. The workflow body is a
+  fixed template embedded in the CLI.
+
+behaviors:
+  - `src/commands/init.ts` MUST contain a string constant `CI_WORKFLOW_TEMPLATE` whose body is a valid GitHub Actions YAML file. The workflow MUST trigger on both `push` and `pull_request`, check out the repo, set up Node (pinned to a specific major version, currently 20), and run `npx -y @tnl/cli verify` as its primary step.
+  - When `tnl init` runs (regardless of target agent or whether an agent is detected), init MUST write `<cwd>/.github/workflows/tnl-verify.yml` with `CI_WORKFLOW_TEMPLATE`. It MUST create `.github/workflows/` if absent.
+  - If `.github/workflows/tnl-verify.yml` already exists, init MUST leave the file untouched and report the skip. No merging — the file is treated as opaque once present, preserving any user customizations.
+  - This installation step MAY be suppressed by `tnl init`'s `--no-ci` or `--minimal` opt-out flag (defined in `cli-init.tnl`). When suppressed, the step is skipped and the summary reports `.github/workflows/tnl-verify.yml` under `Skipped (opt-out)` rather than `Created` or `Skipped (already present)`.
+  - The end-of-run summary MUST include the workflow path in `Created` or `Skipped (already present)`.
+  - Tests MUST cover: the workflow file is written when init runs on an empty cwd; `.github/workflows/` directory auto-created; existing file → skipped and reported; summary includes the workflow path on first run; the written content contains `npx -y @tnl/cli verify` and triggers on `push` / `pull_request`; the workflow is written regardless of target agent (tested across `--agent claude`, `--agent codex`, and no-agent-detected cases).
+
+non-goals:
+  - Workflow generators for other CI systems (GitLab CI, CircleCI, Jenkins) — deferred.
+  - Configurable Node version via an init flag — the template pins Node 20; adopters edit the file if they need a different version.
+  - Automatic updates of the file on later runs — user edits are respected.
+  - Matrix builds across Node versions.
+  - Caching optimizations beyond what `npx -y` and `actions/setup-node` provide.
+  - Scheduled / cron triggers.
+  - Running `tnl resolve` in CI — verify is the gate; resolve is an author-side concern.
+
+rationale:
+  Why always write (regardless of agent): CI is VCS-specific, not
+  agent-specific. Users on any agent benefit from CI enforcement.
+  The no-agent invocation still creates `tnl/` and `workflow.tnl`,
+  so installing the CI workflow is consistent with "tnl init
+  scaffolds the full TNL-in-a-repo setup."
+
+  Why skip on existing file, not merge: GitHub Actions workflow
+  files are user-editable documents, not structured config.
+  Merging risks breaking customizations. Skip-on-exists preserves
+  user edits.
+
+  Why `npx -y @tnl/cli verify` rather than a globally-installed
+  `tnl`: CI runners start clean. `npx -y` fetches on demand without
+  adding a separate install step.
