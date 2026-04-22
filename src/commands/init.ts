@@ -60,7 +60,7 @@ This repository uses TNL (Typed Natural Language): structured English contracts 
 
 **Task flow.**
 1. **Scope.** Check \`tnl/\` for existing TNLs covering the request. If the task modifies behavior already described, the output is an *edit* to that file; if it introduces a genuinely new behavioral surface, the output is a *new TNL*. Property changes to existing surfaces (new validation rule, tightened constraint, new input/output on an existing route) are edits, not new files.
-2. **Clarify.** If the request admits multiple reasonable interpretations, ask targeted clarifying questions first. Do not silently pick one.
+2. **Clarify.** If the request admits multiple reasonable interpretations, ask targeted clarifying questions first. Do not silently pick one. When your tool surface supports structured multiple-choice prompts (e.g. Claude Code's \`AskUserQuestion\` tool), use them instead of free text so the user can select rather than type.
 3. **Propose the TNL inline in the chat reply.** Output the full proposed TNL content as a fenced code block in your chat reply. Do NOT write it to a file yet. Keep it concrete: real paths, named function signatures, edge cases as MUST clauses, explicit non-goals.
 4. **Wait for user approval.** Nothing is written to disk — including the TNL file itself — until the user approves. Incorporate any edits the user requests before proceeding.
 5. **Save the approved TNL** to \`tnl/<slug>.tnl\` (kebab-case, matching the \`id:\` field). For edits, update the existing file in place.
@@ -146,9 +146,12 @@ interface InstallTemplates {
 
 const DEFAULT_TEMPLATES: InstallTemplates = {
   hookCommand: 'npx @tnl/cli hook pre-tool-use',
-  mcpServerEntry: { command: 'npx', args: ['-y', '@tnl/mcp-server'] },
+  mcpServerEntry: {
+    command: 'npx',
+    args: ['-y', '-p', '@tnl/cli', 'tnl-mcp-server'],
+  },
   codexBlock:
-    '[mcp_servers.tnl]\ncommand = "npx"\nargs = ["-y", "@tnl/mcp-server"]\n',
+    '[mcp_servers.tnl]\ncommand = "npx"\nargs = ["-y", "-p", "@tnl/cli", "tnl-mcp-server"]\n',
 };
 
 function findPackageRoot(): string {

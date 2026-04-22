@@ -18,8 +18,8 @@ intent:
   to the manual config snippet.
 
 behaviors:
-  - When `tnl init` determines Claude is a target agent, init MUST write or merge `<cwd>/.mcp.json` to register the `tnl` MCP server with `{ command: "npx", args: ["-y", "@tnl/mcp-server"] }` (or `{ command: "node", args: ["<abs>/dist/mcp/server.js"] }` when `cli-init.tnl`'s `--local-install` flag is set).
-  - When `.mcp.json` does not exist, init MUST create it with exactly `{ "mcpServers": { "tnl": { "command": "npx", "args": ["-y", "@tnl/mcp-server"] } } }`.
+  - When `tnl init` determines Claude is a target agent, init MUST write or merge `<cwd>/.mcp.json` to register the `tnl` MCP server with `{ command: "npx", args: ["-y", "-p", "@tnl/cli", "tnl-mcp-server"] }` (or `{ command: "node", args: ["<abs>/dist/mcp/server.js"] }` when `cli-init.tnl`'s `--local-install` flag is set).
+  - When `.mcp.json` does not exist, init MUST create it with exactly `{ "mcpServers": { "tnl": { "command": "npx", "args": ["-y", "-p", "@tnl/cli", "tnl-mcp-server"] } } }`.
   - When `.mcp.json` exists and is valid JSON, init MUST preserve every pre-existing top-level field and merge the `tnl` entry into `mcpServers`. Other servers already registered under `mcpServers` MUST be preserved verbatim.
   - The merge MUST be idempotent: if `mcpServers.tnl` is already present in the parsed JSON (any value), init MUST leave the file untouched and report the skip. Shape mismatch (e.g., user edited the command) MUST still be treated as "present" — init does NOT overwrite user edits.
   - If `.mcp.json` exists but is not valid JSON, init MUST emit a warning (to stderr AND the summary warnings list) naming the file and MUST skip the merge; the existing file MUST NOT be overwritten.
@@ -50,8 +50,10 @@ rationale:
   version, point at a fork). Respecting their edits matters more
   than keeping the command string in template sync.
 
-  Why `npx -y @tnl/mcp-server` rather than `@tnl/cli tnl-mcp-server`:
-  aligns with implementation-v1.md §12.1 which commits to two
-  published packages. Until publication (B5), users running locally
-  can override the entry in `.mcp.json` by hand. After B5 the entry
-  works out of the box.
+  Why `npx -y -p @tnl/cli tnl-mcp-server` rather than a separate
+  `@tnl/mcp-server` package: the CLI and MCP server share the parser,
+  resolver, and impact engine; shipping them as one package avoids a
+  two-package lockstep-version problem. MCP is optional at the adopter's
+  init step (`--minimal` skips registration, `--no-mcp` skips the
+  config write), but the binary is always bundled with the CLI — there
+  is no use case for installing the server without the CLI.

@@ -369,7 +369,7 @@ describe('tnl init', () => {
     const parsed = JSON.parse(readFileSync(path, 'utf8'));
     expect(parsed.mcpServers.tnl).toEqual({
       command: 'npx',
-      args: ['-y', '@tnl/mcp-server'],
+      args: ['-y', '-p', '@tnl/cli', 'tnl-mcp-server'],
     });
   });
 
@@ -590,7 +590,7 @@ describe('tnl init', () => {
     const parsed = JSON.parse(readFileSync(path, 'utf8'));
     expect(parsed.mcpServers.tnl).toEqual({
       command: 'npx',
-      args: ['-y', '@tnl/mcp-server'],
+      args: ['-y', '-p', '@tnl/cli', 'tnl-mcp-server'],
     });
   });
 
@@ -704,7 +704,7 @@ describe('tnl init', () => {
     expect(existsSync(path)).toBe(true);
     const content = readFileSync(path, 'utf8');
     expect(content).toBe(
-      '[mcp_servers.tnl]\ncommand = "npx"\nargs = ["-y", "@tnl/mcp-server"]\n',
+      '[mcp_servers.tnl]\ncommand = "npx"\nargs = ["-y", "-p", "@tnl/cli", "tnl-mcp-server"]\n',
     );
   });
 
@@ -1005,6 +1005,18 @@ describe('tnl init', () => {
       expect(STANZA_TEMPLATE).toContain('MAY');
       expect(STANZA_TEMPLATE).toContain('[semantic]');
       expect(STANZA_TEMPLATE).toContain('### RFC 2119 keywords');
+    });
+
+    it('STANZA_TEMPLATE clarify step nudges structured multi-choice with AskUserQuestion as tool-agnostic example', () => {
+      const clarifyIdx = STANZA_TEMPLATE.indexOf('**Clarify.**');
+      const nextStepIdx = STANZA_TEMPLATE.indexOf('**Propose', clarifyIdx);
+      expect(clarifyIdx).toBeGreaterThan(-1);
+      expect(nextStepIdx).toBeGreaterThan(clarifyIdx);
+      const clarifyBlock = STANZA_TEMPLATE.slice(clarifyIdx, nextStepIdx);
+      expect(clarifyBlock).toContain('multiple-choice');
+      expect(clarifyBlock).toContain('AskUserQuestion');
+      // Tool-agnostic: AskUserQuestion appears as example ("e.g."), not as mandate
+      expect(clarifyBlock).toMatch(/e\.g\..*AskUserQuestion/);
     });
 
     it('STANZA_TEMPLATE contains variance-reducer phrases (edge cases, non-goals, scope fence, property changes)', () => {
