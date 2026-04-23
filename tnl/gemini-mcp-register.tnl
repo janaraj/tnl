@@ -16,8 +16,8 @@ intent:
   the directory-creation step.
 
 behaviors:
-  - When `tnl init` determines Gemini is a target agent, init MUST write or merge `<cwd>/.gemini/settings.json` to register the `tnl` MCP server with `{ command: "npx", args: ["-y", "-p", "@typed-nl/cli", "tnl-mcp-server"] }` (or `{ command: "node", args: ["<abs>/dist/mcp/server.js"] }` when `cli-init.tnl`'s `--local-install` flag is set).
-  - When `.gemini/settings.json` does not exist, init MUST create it with exactly `{ "mcpServers": { "tnl": { "command": "npx", "args": ["-y", "-p", "@typed-nl/cli", "tnl-mcp-server"] } } }`. The `.gemini/` directory MUST be created if absent.
+  - When `tnl init` determines Gemini is a target agent, init MUST write or merge `<cwd>/.gemini/settings.json` to register the `tnl` MCP server with `{ command: "npx", args: ["-y", "-p", "typed-nl", "tnl-mcp-server"] }` (or `{ command: "node", args: ["<abs>/dist/mcp/server.js"] }` when `cli-init.tnl`'s `--local-install` flag is set).
+  - When `.gemini/settings.json` does not exist, init MUST create it with exactly `{ "mcpServers": { "tnl": { "command": "npx", "args": ["-y", "-p", "typed-nl", "tnl-mcp-server"] } } }`. The `.gemini/` directory MUST be created if absent.
   - When `.gemini/settings.json` exists and is valid JSON, init MUST preserve every pre-existing top-level field and merge the `tnl` entry into `mcpServers`. Other servers already registered under `mcpServers` MUST be preserved verbatim.
   - The merge MUST be idempotent: if `mcpServers.tnl` is already present in the parsed JSON (any value), init MUST leave the file untouched and report the skip. Shape mismatch (user edited the command) MUST still be treated as "present" — init does NOT overwrite user edits.
   - If `.gemini/settings.json` exists but is not valid JSON, init MUST emit a warning (stderr AND summary warnings list) naming the file and MUST skip the merge; the existing file MUST NOT be overwritten.

@@ -20,7 +20,7 @@ internal_docs/*
 # Evals — ignore configs and transient JSON; keep polished writeups + generic scripts
 evals/*-config.json
 evals/*-scorecard.json
-evals/triggers-round1-snapshot.json
+evals/triggers-round1-snapshot*.json
 
 # Behavioral tests — ignore runners (hardcoded paths), results, caches, older runs
 behavioral-tests/v2/

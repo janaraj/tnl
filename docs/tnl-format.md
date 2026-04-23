@@ -241,7 +241,7 @@ The verifier does **not** execute the test. CI runs tests via the existing test 
 
 ### CI integration
 
-`tnl init` writes `.github/workflows/tnl-verify.yml` which runs `npx -y @typed-nl/cli verify` on every push and pull request. Failure fails the workflow.
+`tnl init` writes `.github/workflows/tnl-verify.yml` which runs `npx -y typed-nl verify` on every push and pull request. Failure fails the workflow.
 
 ---
 

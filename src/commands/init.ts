@@ -85,9 +85,9 @@ intent:
 
 behaviors:
   - When a request admits more than one reasonable interpretation, the agent MUST ask clarifying questions before proposing a TNL or writing code. The agent MUST NOT lock in a single interpretation without surfacing it for review first.
-  - The agent MUST write the minimum code that satisfies the request. Abstractions, helpers, generic utilities, and configuration hooks MUST NOT be introduced unless the current task requires them — three similar lines beat a premature abstraction. Do not generalize for hypothetical future needs.
+  - The agent MUST write the code the request actually calls for, and no more. Additional abstractions, helpers, generic utilities, and configuration hooks MUST NOT be introduced unless a clause demands them — three similar lines beat a premature abstraction. Do not generalize for hypothetical future needs.
   - The agent MUST modify only code directly necessary for the requested change. Refactoring, renaming, or cleaning up neighboring code MUST NOT happen on the way by. Adjacent issues MUST be surfaced separately, not bundled.
-  - Before writing code, the agent MUST translate the request into concrete, verifiable targets: specific file paths, function signatures, test names, or TNL clauses. Fuzzy requirements MUST NOT be implemented directly. If targets cannot be named, the agent MUST ask until they can.
+  - Before writing code, the agent MUST pin the request to named, verifiable artifacts: file paths, function signatures, test names, or TNL clauses. Fuzzy requirements MUST NOT be implemented directly. If the artifacts can't be named, the agent MUST ask until they can.
   - When adding code to an existing codebase, the agent MUST first identify the conventions in use (naming, error handling, test structure, file organization) and follow them. New patterns MAY be introduced only when no existing pattern fits, and MUST be surfaced explicitly rather than introduced silently.
   - At the end of every task that produced code changes, the agent MUST list each MUST clause from the active TNL files (this file plus any feature TNLs touched) and state for each: (a) satisfied — by which file/function/test, (b) could not satisfy — why, or (c) did not apply — why. The list MUST be exhaustive; silent omission counts as a failure.
 
@@ -115,10 +115,10 @@ This repository uses TNL (Typed Natural Language): structured English contracts 
 **Task flow.**
 1. **Scope.** Check \`tnl/\` for existing TNLs covering the request. If the task modifies behavior already described, the output is an *edit* to that file; if it introduces a genuinely new behavioral surface, the output is a *new TNL*. Property changes to existing surfaces (new validation rule, tightened constraint, new input/output on an existing route) are edits, not new files.
 2. **Clarify.** If the request admits multiple reasonable interpretations, ask targeted clarifying questions first. Do not silently pick one. When your tool surface supports structured multiple-choice prompts (e.g. Claude Code's \`AskUserQuestion\` tool), use them instead of free text so the user can select rather than type.
-3. **Propose the TNL inline in the chat reply.** Output the full proposed TNL content as a fenced code block in your chat reply. Do NOT write it to a file yet. Keep it concrete: real paths, named function signatures, edge cases as MUST clauses, explicit non-goals.
+3. **Propose the TNL inline in the chat reply.** Output the full proposed TNL content as a fenced code block in your chat reply. Do NOT write it to a file yet. Keep it concrete: real paths, named function signatures, edge cases as MUST clauses.
 4. **Wait for user approval.** Nothing is written to disk — including the TNL file itself — until the user approves. Incorporate any edits the user requests before proceeding.
 5. **Save the approved TNL** to \`tnl/<slug>.tnl\` (kebab-case, matching the \`id:\` field). For edits, update the existing file in place.
-6. **Implement against the approved TNL.** Every MUST clause must map to specific code or tests. Paths in the machine zone are the scope fence — do not modify files outside \`paths:\` unless the user explicitly agrees.
+6. **Implement against the approved TNL.** Every MUST clause must map to specific code or tests. Do not modify files outside \`paths:\` unless the user explicitly agrees.
 7. **Self-attest.** List each MUST clause from \`workflow.tnl\` plus the feature TNL(s) touched. For each, state: (a) satisfied — by which file/function/test, (b) could not satisfy — why, or (c) did not apply — why. Exhaustive; silent omission counts as a miss.
 
 ### When a new TNL file is justified
@@ -151,7 +151,7 @@ behaviors:
   - The system SHOULD <strong preference, non-blocking>.
 
 non-goals:
-  - <explicit scope fence>
+  - <what this feature deliberately does NOT do>
 
 rationale:
   Optional prose — tradeoffs, gotchas, or the "why" behind choices.
@@ -208,13 +208,13 @@ interface InstallTemplates {
 }
 
 const DEFAULT_TEMPLATES: InstallTemplates = {
-  hookCommand: 'npx @typed-nl/cli hook pre-tool-use',
+  hookCommand: 'npx typed-nl hook pre-tool-use',
   mcpServerEntry: {
     command: 'npx',
-    args: ['-y', '-p', '@typed-nl/cli', 'tnl-mcp-server'],
+    args: ['-y', '-p', 'typed-nl', 'tnl-mcp-server'],
   },
   codexBlock:
-    '[mcp_servers.tnl]\ncommand = "npx"\nargs = ["-y", "-p", "@typed-nl/cli", "tnl-mcp-server"]\n',
+    '[mcp_servers.tnl]\ncommand = "npx"\nargs = ["-y", "-p", "typed-nl", "tnl-mcp-server"]\n',
 };
 
 function findPackageRoot(): string {
@@ -434,7 +434,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: npx -y @typed-nl/cli verify
+      - run: npx -y typed-nl verify
 `;
 
 function installCiWorkflow(

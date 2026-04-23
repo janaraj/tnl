@@ -16,7 +16,7 @@ intent:
   hint. The project write itself is automated.
 
 behaviors:
-  - When `tnl init` determines Codex is a target agent, init MUST write or merge `<cwd>/.codex/config.toml` to register a `tnl` MCP server as `[mcp_servers.tnl]` with `command = "npx"` and `args = ["-y", "-p", "@typed-nl/cli", "tnl-mcp-server"]` (or `command = "node"` and `args = ["<abs>/dist/mcp/server.js"]` when `cli-init.tnl`'s `--local-install` flag is set).
+  - When `tnl init` determines Codex is a target agent, init MUST write or merge `<cwd>/.codex/config.toml` to register a `tnl` MCP server as `[mcp_servers.tnl]` with `command = "npx"` and `args = ["-y", "-p", "typed-nl", "tnl-mcp-server"]` (or `command = "node"` and `args = ["<abs>/dist/mcp/server.js"]` when `cli-init.tnl`'s `--local-install` flag is set).
   - When `.codex/config.toml` does not exist, init MUST create it with a single `[mcp_servers.tnl]` block in canonical TOML shape (the table header, the `command` line, and the `args` line, each terminated by a newline). The `.codex/` directory MUST be created if absent.
   - When `.codex/config.toml` exists, init MUST use a literal-substring idempotency check: if the raw text already contains the exact string `[mcp_servers.tnl]`, init MUST leave the file untouched and report the skip. Otherwise init MUST append a blank line and the `[mcp_servers.tnl]` block to the end of the existing file, preserving everything above it verbatim.
   - The summary MUST include `.codex/config.toml` in `Created` or `Skipped (already present)` when Codex is a target.

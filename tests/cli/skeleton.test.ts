@@ -52,14 +52,14 @@ describe('tnl CLI skeleton', () => {
     const cap = capture();
     const code = await runCli(['--version'], cap.opts);
     expect(code).toBe(0);
-    expect(cap.stdout()).toMatch(/^\d+\.\d+\.\d+\n$/);
+    expect(cap.stdout()).toMatch(/^\d+\.\d+\.\d+(-[0-9a-z.]+)?\n$/);
   });
 
   it('prints version with -v and exits 0', async () => {
     const cap = capture();
     const code = await runCli(['-v'], cap.opts);
     expect(code).toBe(0);
-    expect(cap.stdout()).toMatch(/^\d+\.\d+\.\d+\n$/);
+    expect(cap.stdout()).toMatch(/^\d+\.\d+\.\d+(-[0-9a-z.]+)?\n$/);
   });
 
   it('exits 2 with message on unknown subcommand', async () => {

@@ -271,7 +271,7 @@ git worktree add ../chiefofstaff-baseline  eb49b71 -b eval/baseline
 
 # TNL setup
 cd ../chiefofstaff-tnl
-npx @typed-nl/cli init --agent claude --local-install
+npx typed-nl init --agent claude --local-install
 
 # Baseline setup: append the 4 working principles to CLAUDE.md (see evals/baseline-principles.md)
 

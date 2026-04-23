@@ -1,52 +1,24 @@
 # TNL — Typed Natural Language
 
-Structured English contracts for coding agents. A short file per feature, reviewed before code lands, kept as durable context for every future session.
+TNL gives coding agents a short structured English contract per feature — reviewed before code lands, kept as durable context for every future session.
 
-```bash
-npx -y @typed-nl/cli init
-```
+## Think of it as plan mode with a schema
 
----
+If you've used **plan mode** in Claude Code, you know the pattern: before the agent writes any code, it proposes a plan, you review, you approve, then code lands. TNL is the same discipline — but with a fixed schema, saved to disk, and machine-checkable.
 
-## The two ideas this builds on
+The schema is seven fields:
 
-Andrej Karpathy wrote two things worth stealing:
+- `id` / `title` — what this feature is
+- `scope` — `feature` or `repo-wide`
+- `paths` — which files the change is allowed to touch
+- `surfaces` — named external surfaces (CLI commands, routes, MCP tools)
+- `behaviors` — numbered MUST / SHOULD / MAY clauses; the contract proper
+- `non-goals` — what's explicitly out of scope
+- `rationale` — the why, for future readers
 
-- [**"Agents make wrong assumptions silently"**](https://x.com/karpathy/status/2015883857489522876) — coding agents don't manage confusion, don't seek clarification, don't surface tradeoffs. Good prompting norms help, but they're vibes, not gates.
-- [**"The LLM is the programmer, the wiki is the codebase"**](https://x.com/karpathy/status/2039805659525644595) — structured Markdown the model can reason over directly beats fuzzy RAG for mid-sized bodies of knowledge.
+You approve this *once*, before any code runs. The agent implements against each MUST clause and self-attests at the end — for every MUST, naming the file or test that satisfies it.
 
-TNL combines the two: **a short per-feature contract, reviewed before any code lands, that sticks around as the feature's durable knowledge base for every future session.**
-
-## What TNL adds on top
-
-- **Mechanical enforcement.** The agent outputs a typed contract; you approve; it maps every MUST clause to code or tests. Not a norm — a gate.
-- **Scope fence.** `paths:` declares which files are in play. Anything outside is flagged.
-- **Machine checks.** `tnl verify` confirms paths exist, tests still resolve, clauses haven't drifted.
-- **Cross-session persistence.** The approved contract stays as `tnl/<slug>.tnl`. Future sessions inherit the intent instead of re-reading the code.
-
-## Think of it as plan mode, made durable
-
-If you've used **plan mode** in Claude Code, you know the shape: the agent proposes a plan, you review, you approve, then code lands. Plan mode works — but the plan is prose in chat, different every session, and gone when the session ends.
-
-TNL is that discipline tightened: a structured schema instead of freeform prose, saved to disk instead of lost to the session, and machine-verifiable where plan mode is trust-based.
-
----
-
-## The workflow
-
-Every feature request — new or modification — runs through 7 steps:
-
-1. **Scope** — agent scans `tnl/` for files whose `paths:` overlap the request. If one exists, the output is an *edit*; if not, a *new* TNL.
-2. **Clarify** — ambiguous request? Agent asks questions before proposing anything.
-3. **Propose** — agent outputs the full TNL content inline in chat. Nothing on disk yet.
-4. **Wait for approval** — you review, push back, approve. Nothing is written until you say go.
-5. **Save** — agent writes the approved TNL to `tnl/<slug>.tnl`.
-6. **Implement** — agent writes code + tests against the contract. `paths:` is the scope fence.
-7. **Self-attest** — agent lists every MUST clause and where it was satisfied. Silent omission counts as a miss.
-
-For follow-up work, step 1 returns "edit the existing TNL" — and the next session reads the already-approved contract as context, rather than rediscovering design decisions from the code.
-
----
+**No new tool, no new agent, no new workflow.** TNL slots into whatever agent you already use. Claude Code, Codex, Gemini get first-class `tnl init` with stanza + hooks + MCP. Any agent that reads a Markdown instruction file adopts with a two-step manual copy — the minimum product is a stanza in your instruction file plus a `tnl/` directory. `tnl verify`, the PreToolUse hook that re-surfaces the contract mid-edit, and the MCP server are optional layers on top.
 
 ## A TNL file looks like this
 
@@ -77,25 +49,54 @@ Three zones: **machine** (`id`, `paths`, `surfaces`), **contract** (`behaviors` 
 
 ---
 
+## The workflow
+
+Every feature request — new or modification — runs through 7 steps:
+
+1. **Scope** — agent scans `tnl/` for files whose `paths:` overlap the request. If one exists, the output is an *edit*; if not, a *new* TNL.
+2. **Clarify** — ambiguous request? Agent asks questions before proposing anything.
+3. **Propose** — agent outputs the full TNL content inline in chat. Nothing on disk yet.
+4. **Wait for approval** — you review, push back, approve. Nothing is written until you say go.
+5. **Save** — agent writes the approved TNL to `tnl/<slug>.tnl`.
+6. **Implement** — agent writes code + tests against the contract. `paths:` bounds the change.
+7. **Self-attest** — agent lists every MUST clause and where it was satisfied. Silent omission counts as a miss.
+
+For follow-up work, step 1 returns "edit the existing TNL" — and the next session reads the already-approved contract as context, rather than rediscovering design decisions from the code.
+
+---
+
+## What you get over plan mode
+
+- **Structure.** Seven fixed fields. Reviewers scan the same things every time. Agents produce the same shape every session.
+- **Persistence.** Plan mode's output is a chat message — gone when the session ends. A TNL is a file on disk alongside your code. The next session reads the contract instead of re-analysing source.
+- **Enforcement.** Every MUST clause maps to a file or test at self-attestation time. `tnl verify` checks paths exist and test bindings resolve. The PreToolUse hook re-injects the contract on every Edit/Write so the agent can't drift silently.
+- **Incremental adoption.** No bulk migration. Your next feature gets a TNL; the rest of the repo stays as-is. The knowledge base accumulates as the work accumulates.
+
+---
+
 ## Does it actually work?
 
-We ran a controlled A/B. The baseline condition uses four working principles — think before coding, simplicity first, surgical edits, goal-driven — written as prose in the project's CLAUDE.md / AGENTS.md. TNL mode uses the same four plus two more (match existing conventions; exhaustive end-of-task self-attestation) — six MUST clauses total, encoded as [`tnl/workflow.tnl`](./tnl/workflow.tnl). Same agent, same project context; only the contract step differs. 3 tasks, 2 agents, 3 codebases.
+We ran a controlled A/B. Baseline condition: four working principles — think before coding, simplicity first, surgical edits, goal-driven — written as prose in the project's CLAUDE.md / AGENTS.md. TNL condition: the same four plus two more (match existing conventions; exhaustive end-of-task self-attestation) encoded as [`tnl/workflow.tnl`](./tnl/workflow.tnl), plus a per-feature TNL. Same agent, same project context; only the contract step differs.
 
-Headline task: add event-driven triggers to a 16KLOC Python codebase (35 behavioural scenarios covering config, cycle prevention, cron coexistence, CLI surfaces).
+Headline task: add event-driven triggers to a 16KLOC Python codebase. 35 behavioural scenarios covering config, cycle prevention, cron coexistence, CLI surfaces.
 
-| Agent | TNL passing | Baseline passing | Gap |
-|---|---:|---:|---:|
-| Claude Code Opus 4.7 (n=2) | **35/35, 31/35** (89–100 %) | 29/35, 27/35 (77–83 %) | +5 to +8 |
-| Codex GPT-5.4 high (n=1) | **32/35** (91 %) | 26/35 (74 %) | +6 |
+| Agent | Run | TNL | Baseline | Gap |
+|---|:---:|:---:|:---:|:---:|
+| Claude Code Opus 4.7 | 1 | 35/35 | 29/35 | +6 |
+| Claude Code Opus 4.7 | 2 | 31/35 | 27/35 | +4 |
+| Claude Code Opus 4.7 | 3 | 27/35 | 25/35 | +2 |
+| Codex GPT-5.4 high | 1 | 32/35 | 26/35 | +6 |
+| Codex GPT-5.4 high | 2 | 31/35 | 26/35 | +5 |
 
-Across all 3 tasks (TypeScript + Python, Claude + Codex), **TNL never lost on functional completeness**. No cell overlap between TNL's band (86–100 %) and baseline's (57–83 %).
+**TNL was ahead of baseline in every paired cell across both models.** Gap ranges +2 to +6 scenarios.
 
 Other signals:
-- **Consistency is tighter under TNL.** MUST-clause count on the same task lands 15/16/17 across three independent runs. Baseline's scope-creep file count ranges 2–4.
-- **Cost is within noise of baseline.** Across 5 paired runs: TNL cheaper in 2, baseline cheaper in 3. No consistent "TNL tax."
-- **Follow-up work reused the contract.** Both TNL agents edited the existing TNL file for a round-2 task; no new file was created. The baseline agent had to re-read code.
 
-**Caveats up front.** n is 1–2 per cell, LLM sessions are noisy, and we built the tool. Every script, prompt, raw JSON, and session transcript is committed so you can rerun anything.
+- **Contracts retained.** TNL runs encoded 11–22 explicit MUST clauses in the per-feature TNL before any code was written. Baseline produced 0 by construction — there's no contract step. On the cross-session retention question (*"did the next session re-use the contract or re-read code?"*), the TNL agent opened and edited the existing TNL on every follow-up task we measured; baseline re-read source.
+- **Cost parity.** 5 paired runs: TNL cheaper in 2, baseline cheaper in 3. No consistent "TNL tax" for a first-pass feature build.
+- **Follow-up work reused the contract.** On round-2 tasks in the same worktrees, TNL agents edited the existing TNL file rather than creating a new one (4/4 samples). The baseline agent had to re-read the code each time.
+
+**Caveats up front.** Small sample (2–3 per cell), LLM sessions are noisy, and we built the tool. Every script, prompt, raw JSON, and session transcript is committed so you can rerun anything.
 
 **[Full eval report →](evals/full-eval.md)**
 
@@ -103,7 +104,18 @@ Other signals:
 
 ## Built with TNL
 
-We built this tool using its own workflow — the minimal form (CLAUDE.md stanza + `tnl/`, no hooks or MCP). The baseline rules live in [`tnl/workflow.tnl`](./tnl/workflow.tnl), and every feature has its own TNL in [`tnl/`](./tnl/) (23 and counting). In practice: faster turnaround, few rework cycles, each next change edits the spec instead of re-analysing code. One project's worth of evidence, but the meta-test isn't nothing.
+We built this tool using its own workflow — the minimal form (CLAUDE.md stanza + `tnl/`, no hooks or MCP). The baseline rules live in [`tnl/workflow.tnl`](./tnl/workflow.tnl) and every feature has its own TNL in [`tnl/`](./tnl/). In practice: faster turnaround, few rework cycles, each next change edits the spec instead of re-analysing code. One project's worth of evidence, but the meta-test isn't nothing.
+
+---
+
+## What TNL builds on
+
+Two of Andrej Karpathy's observations framed the problem we're solving:
+
+- [**"Agents make wrong assumptions silently"**](https://x.com/karpathy/status/2015883857489522876) — coding agents don't manage confusion, don't seek clarification, don't surface tradeoffs. Prompting norms help but they're vibes, not gates.
+- [**"The LLM is the programmer, the wiki is the codebase"**](https://x.com/karpathy/status/2039805659525644595) — structured Markdown the model can reason over directly beats fuzzy RAG for mid-sized bodies of knowledge.
+
+TNL is our answer: a concrete contract format with a fixed schema, a review workflow, and enforcement plumbing that turns both observations into a daily practice.
 
 ---
 
@@ -111,14 +123,23 @@ We built this tool using its own workflow — the minimal form (CLAUDE.md stanza
 
 ```bash
 # One-off, no install
-npx -y @typed-nl/cli <command>
+npx -y typed-nl <command>
 
 # Or install globally
-npm install -g @typed-nl/cli
+npm install -g typed-nl
 tnl <command>
 ```
 
 Requires Node 20 or later.
+
+### Other agents (manual install)
+
+If your agent reads a markdown instruction file but isn't in `tnl init`'s native list, the minimum adoption is two copies:
+
+1. Copy [`tnl/workflow.tnl`](./tnl/workflow.tnl) from this repo into `tnl/workflow.tnl` in your project.
+2. Paste the TNL workflow stanza (the block under `<!-- tnl:workflow-stanza -->` that `tnl init --agent claude` would emit into `CLAUDE.md`) into your agent's instruction file.
+
+That's it — the workflow fires from the stanza, contracts live in `tnl/`. The hook, MCP server, and CI action are all optional and agent-specific; they can be added later if your stack supports them.
 
 ## Quickstart
 
@@ -128,7 +149,7 @@ Begin with just the baseline TNL scaffold — no MCP, no hooks, no CI. The agent
 
 ```bash
 cd /path/to/your/repo
-npx -y @typed-nl/cli init --agent claude --minimal
+npx -y typed-nl init --agent claude --minimal
 ```
 
 This writes only:
@@ -154,7 +175,7 @@ Start a Claude Code (or Codex / Gemini) session and ask for any feature. The age
 ### 3. Verify
 
 ```bash
-npx -y @typed-nl/cli verify
+npx -y typed-nl verify
 ```
 
 Runs **tier 1** (paths and dependencies exist) and **tier 2** (test-binding integrity — each `[test:]` annotation names a test that still exists). Exits 2 on any failure; CI uses this gate.
@@ -165,16 +186,16 @@ You can always re-run `tnl init` to layer on more. Each step is independent and 
 
 ```bash
 # Full install: MCP server + PreToolUse hook + CI workflow
-npx -y @typed-nl/cli init --agent claude
+npx -y typed-nl init --agent claude
 
 # Everything except CI
-npx -y @typed-nl/cli init --agent claude --no-ci
+npx -y typed-nl init --agent claude --no-ci
 
 # Everything except the PreToolUse hook
-npx -y @typed-nl/cli init --agent claude --no-hook
+npx -y typed-nl init --agent claude --no-hook
 
 # Claude only: add the /tnl-feature slash command
-npx -y @typed-nl/cli init --agent claude --with-skill
+npx -y typed-nl init --agent claude --with-skill
 ```
 
 What each capability gives you:
@@ -231,7 +252,7 @@ Without `--agent`, init auto-detects targets (`.claude/` → Claude; `AGENTS.md`
 Running MCP manually:
 
 ```bash
-npx -y -p @typed-nl/cli tnl-mcp-server   # stdio JSON-RPC server
+npx -y -p typed-nl tnl-mcp-server   # stdio JSON-RPC server
 ```
 
 ---

@@ -18,11 +18,12 @@ describe('npm-publish-shape', () => {
   });
 
   it('has name, version, description, type, bin set', () => {
-    expect(pkg.name).toBe('@typed-nl/cli');
-    expect(pkg.version).toBe('0.1.0');
+    expect(pkg.name).toBe('typed-nl');
+    expect(pkg.version).toMatch(/^0\.1\.0(-[0-9a-z.]+)?$/);
     expect(pkg.description).toMatch(/TNL/);
     expect(pkg.type).toBe('module');
     expect(pkg.bin).toEqual({
+      'typed-nl': './dist/index.js',
       tnl: './dist/index.js',
       'tnl-mcp-server': './dist/mcp/server.js',
     });
@@ -69,8 +70,8 @@ describe('npm-publish-shape', () => {
     }
   });
 
-  it('publishConfig.access is public', () => {
-    expect(pkg.publishConfig).toEqual({ access: 'public' });
+  it('publishConfig is absent (unscoped package, no override needed)', () => {
+    expect(pkg.publishConfig).toBeUndefined();
   });
 
   it('files allowlist is exactly the three entries', () => {

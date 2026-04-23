@@ -1,6 +1,6 @@
 {
-  "name": "@typed-nl/cli",
-  "version": "0.1.0",
+  "name": "typed-nl",
+  "version": "0.1.0-alpha.2",
   "description": "TNL — Typed Natural Language: structured English contracts for coding agents. CLI + MCP server + layered verifier.",
   "type": "module",
   "author": "Janarthanan Rajendran <janaraj84@gmail.com>",
@@ -24,6 +24,7 @@
     "specification"
   ],
   "bin": {
+    "typed-nl": "./dist/index.js",
     "tnl": "./dist/index.js",
     "tnl-mcp-server": "./dist/mcp/server.js"
   },
@@ -32,9 +33,6 @@
     "LICENSE",
     "README.md"
   ],
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",

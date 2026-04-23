@@ -291,7 +291,7 @@ describe('tnl init', () => {
     expect(parsed.hooks.PreToolUse).toHaveLength(1);
     expect(parsed.hooks.PreToolUse[0].matcher).toContain('Edit');
     expect(parsed.hooks.PreToolUse[0].hooks[0].command).toContain(
-      '@typed-nl/cli hook pre-tool-use',
+      'typed-nl hook pre-tool-use',
     );
   });
 
@@ -369,7 +369,7 @@ describe('tnl init', () => {
     const parsed = JSON.parse(readFileSync(path, 'utf8'));
     expect(parsed.mcpServers.tnl).toEqual({
       command: 'npx',
-      args: ['-y', '-p', '@typed-nl/cli', 'tnl-mcp-server'],
+      args: ['-y', '-p', 'typed-nl', 'tnl-mcp-server'],
     });
   });
 
@@ -452,7 +452,7 @@ describe('tnl init', () => {
     const path = join(cwd, '.github', 'workflows', 'tnl-verify.yml');
     expect(existsSync(path)).toBe(true);
     const content = readFileSync(path, 'utf8');
-    expect(content).toContain('npx -y @typed-nl/cli verify');
+    expect(content).toContain('npx -y typed-nl verify');
     expect(content).toContain('push:');
     expect(content).toContain('pull_request:');
   });
@@ -590,7 +590,7 @@ describe('tnl init', () => {
     const parsed = JSON.parse(readFileSync(path, 'utf8'));
     expect(parsed.mcpServers.tnl).toEqual({
       command: 'npx',
-      args: ['-y', '-p', '@typed-nl/cli', 'tnl-mcp-server'],
+      args: ['-y', '-p', 'typed-nl', 'tnl-mcp-server'],
     });
   });
 
@@ -704,7 +704,7 @@ describe('tnl init', () => {
     expect(existsSync(path)).toBe(true);
     const content = readFileSync(path, 'utf8');
     expect(content).toBe(
-      '[mcp_servers.tnl]\ncommand = "npx"\nargs = ["-y", "-p", "@typed-nl/cli", "tnl-mcp-server"]\n',
+      '[mcp_servers.tnl]\ncommand = "npx"\nargs = ["-y", "-p", "typed-nl", "tnl-mcp-server"]\n',
     );
   });
 
@@ -1019,11 +1019,16 @@ describe('tnl init', () => {
       expect(clarifyBlock).toMatch(/e\.g\..*AskUserQuestion/);
     });
 
-    it('STANZA_TEMPLATE contains variance-reducer phrases (edge cases, non-goals, scope fence, property changes)', () => {
+    it('STANZA_TEMPLATE contains the retained variance-reducer phrases', () => {
       expect(STANZA_TEMPLATE).toContain('edge cases as MUST clauses');
-      expect(STANZA_TEMPLATE).toContain('explicit non-goals');
-      expect(STANZA_TEMPLATE).toContain('scope fence');
       expect(STANZA_TEMPLATE).toContain('are edits, not new files');
+    });
+
+    it('STANZA_TEMPLATE does NOT contain reverted scope-narrowing phrases', () => {
+      // Removed — empirical eval showed these correlated with agents narrowing
+      // feature scope (fencing runtime guards as non-goals). See cli-init.tnl.
+      expect(STANZA_TEMPLATE).not.toContain('explicit non-goals');
+      expect(STANZA_TEMPLATE).not.toContain('scope fence');
     });
 
     it('STANZA_TEMPLATE has a "When a new TNL file is justified" subsection', () => {
@@ -1061,7 +1066,7 @@ describe('tnl init', () => {
       expect(agentsMd).toContain('### When a new TNL file is justified');
       expect(agentsMd).toContain('Do not create a new TNL to patch an existing one');
       expect(agentsMd).toContain('are edits, not new files');
-      expect(agentsMd).toContain('scope fence');
+      expect(agentsMd).not.toContain('scope fence');
       expect(agentsMd).toContain('inline in the chat reply');
       expect(agentsMd).not.toContain('before writing code');
     });
@@ -1075,7 +1080,7 @@ describe('tnl init', () => {
       expect(geminiMd).toContain('### When a new TNL file is justified');
       expect(geminiMd).toContain('Do not create a new TNL to patch an existing one');
       expect(geminiMd).toContain('are edits, not new files');
-      expect(geminiMd).toContain('scope fence');
+      expect(geminiMd).not.toContain('scope fence');
       expect(geminiMd).toContain('inline in the chat reply');
       expect(geminiMd).not.toContain('before writing code');
     });

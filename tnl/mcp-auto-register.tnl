@@ -18,8 +18,8 @@ intent:
   to the manual config snippet.
 
 behaviors:
-  - When `tnl init` determines Claude is a target agent, init MUST write or merge `<cwd>/.mcp.json` to register the `tnl` MCP server with `{ command: "npx", args: ["-y", "-p", "@typed-nl/cli", "tnl-mcp-server"] }` (or `{ command: "node", args: ["<abs>/dist/mcp/server.js"] }` when `cli-init.tnl`'s `--local-install` flag is set).
-  - When `.mcp.json` does not exist, init MUST create it with exactly `{ "mcpServers": { "tnl": { "command": "npx", "args": ["-y", "-p", "@typed-nl/cli", "tnl-mcp-server"] } } }`.
+  - When `tnl init` determines Claude is a target agent, init MUST write or merge `<cwd>/.mcp.json` to register the `tnl` MCP server with `{ command: "npx", args: ["-y", "-p", "typed-nl", "tnl-mcp-server"] }` (or `{ command: "node", args: ["<abs>/dist/mcp/server.js"] }` when `cli-init.tnl`'s `--local-install` flag is set).
+  - When `.mcp.json` does not exist, init MUST create it with exactly `{ "mcpServers": { "tnl": { "command": "npx", "args": ["-y", "-p", "typed-nl", "tnl-mcp-server"] } } }`.
   - When `.mcp.json` exists and is valid JSON, init MUST preserve every pre-existing top-level field and merge the `tnl` entry into `mcpServers`. Other servers already registered under `mcpServers` MUST be preserved verbatim.
   - The merge MUST be idempotent: if `mcpServers.tnl` is already present in the parsed JSON (any value), init MUST leave the file untouched and report the skip. Shape mismatch (e.g., user edited the command) MUST still be treated as "present" — init does NOT overwrite user edits.
   - If `.mcp.json` exists but is not valid JSON, init MUST emit a warning (to stderr AND the summary warnings list) naming the file and MUST skip the merge; the existing file MUST NOT be overwritten.
@@ -50,7 +50,7 @@ rationale:
   version, point at a fork). Respecting their edits matters more
   than keeping the command string in template sync.
 
-  Why `npx -y -p @typed-nl/cli tnl-mcp-server` rather than a separate
+  Why `npx -y -p typed-nl tnl-mcp-server` rather than a separate
   separate MCP package: the CLI and MCP server share the parser,
   resolver, and impact engine; shipping them as one package avoids a
   two-package lockstep-version problem. MCP is optional at the adopter's
