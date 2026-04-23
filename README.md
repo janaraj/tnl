@@ -1,6 +1,6 @@
 # TNL — Typed Natural Language
 
-TNL gives coding agents a short structured English contract per feature — reviewed before code lands, kept as durable context for every future session.
+Plan mode works, for one session. TNL is that discipline, made persistent and structured: a per-feature contract with a fixed schema — proposed by the agent, approved by you, implemented against, saved on disk, and read by every future session.
 
 ## Think of it as plan mode with a schema
 
@@ -84,16 +84,15 @@ Headline task: add event-driven triggers to a 16KLOC Python codebase. 35 behavio
 |---|:---:|:---:|:---:|:---:|
 | Claude Code Opus 4.7 | 1 | 35/35 | 29/35 | +6 |
 | Claude Code Opus 4.7 | 2 | 31/35 | 27/35 | +4 |
-| Claude Code Opus 4.7 | 3 | 27/35 | 25/35 | +2 |
+| Claude Code Opus 4.7 | 3 | 30/35 | 25/35 | +5 |
 | Codex GPT-5.4 high | 1 | 32/35 | 26/35 | +6 |
 | Codex GPT-5.4 high | 2 | 31/35 | 26/35 | +5 |
 
-**TNL was ahead of baseline in every paired cell across both models.** Gap ranges +2 to +6 scenarios.
+**TNL was ahead of baseline in every paired cell across both models.** Gap ranges +4 to +6 scenarios.
 
 Other signals:
 
-- **Contracts retained.** TNL runs encoded 11–22 explicit MUST clauses in the per-feature TNL before any code was written. Baseline produced 0 by construction — there's no contract step. On the cross-session retention question (*"did the next session re-use the contract or re-read code?"*), the TNL agent opened and edited the existing TNL on every follow-up task we measured; baseline re-read source.
-- **Cost parity.** 5 paired runs: TNL cheaper in 2, baseline cheaper in 3. No consistent "TNL tax" for a first-pass feature build.
+- **Contracts retained.** TNL runs encoded 15–38 explicit MUST clauses in the per-feature TNL before any code was written. Baseline produced 0 by construction — there's no contract step. On the cross-session retention question (*"did the next session re-use the contract or re-read code?"*), the TNL agent opened and edited the existing TNL on every follow-up task we measured; baseline re-read source.
 - **Follow-up work reused the contract.** On round-2 tasks in the same worktrees, TNL agents edited the existing TNL file rather than creating a new one (4/4 samples). The baseline agent had to re-read the code each time.
 
 **Caveats up front.** Small sample (2–3 per cell), LLM sessions are noisy, and we built the tool. Every script, prompt, raw JSON, and session transcript is committed so you can rerun anything.

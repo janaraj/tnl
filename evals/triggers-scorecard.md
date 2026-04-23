@@ -13,9 +13,8 @@
 | 7 | Net production LOC (+/−) | +612/−64 | +453/−46 |
 | 8 | New abstractions (classes + protocols + modules) | 3 | 4 |
 | 9 | Session wall-clock (min) | — | — |
-| 10 | Session cost (USD, Opus 4 rates) | $52.88 | $34.95 |
-| 11 | Decisions pinned explicitly (MUST clauses in TNL) | 15 | 0 |
-| 12 | Decisions silently guessed (manual tag) | — | — |
+| 10 | Decisions pinned explicitly (MUST clauses in TNL) | 15 | 0 |
+| 11 | Decisions silently guessed (manual tag) | — | — |
 
 ### tnl — files outside `feature_paths`
 - `src/chiefofstaff/core/protocols.py`

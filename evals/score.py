@@ -439,11 +439,9 @@ def render_table(task: str, scores: list[ImplScore]) -> str:
         [str(s.new_abstractions.get("total", 0)) for s in scores])
     row(9, "Session wall-clock (min)",
         [fmt_optional(s.wallclock_minutes) for s in scores])
-    row(10, "Session cost (USD, Opus 4 rates)",
-        [f"${s.token_cost_approx:.2f}" if s.token_cost_approx is not None else "—" for s in scores])
-    row(11, "Decisions pinned explicitly (MUST clauses in TNL)",
+    row(10, "Decisions pinned explicitly (MUST clauses in TNL)",
         [str(s.must_clauses) for s in scores])
-    row(12, "Decisions silently guessed (manual tag)",
+    row(11, "Decisions silently guessed (manual tag)",
         [fmt_optional(s.silent_decisions) for s in scores])
 
     parts = [f"# Scorecard — {task}", "", header, sep] + rows

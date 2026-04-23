@@ -13,9 +13,8 @@
 | 7 | Net production LOC (+/−) | +1038/−51 | +1111/−33 | +1211/−8 |
 | 8 | New abstractions (classes + protocols + modules) | 6 | 8 | 10 |
 | 9 | Session wall-clock (min) | — | — | — |
-| 10 | Token cost (approx) | — | — | — |
-| 11 | Decisions pinned explicitly (MUST clauses in TNL) | 24 | 0 | 31 |
-| 12 | Decisions silently guessed (manual tag) | — | — | — |
+| 10 | Decisions pinned explicitly (MUST clauses in TNL) | 24 | 0 | 31 |
+| 11 | Decisions silently guessed (manual tag) | — | — | — |
 
 ### tnl-v1 — pre-existing failures fixed (red at base, green now)
 - `tests/jobs/definitions/promote/test_prompts.py::TestUserPrompt::test_limits_match_settings`

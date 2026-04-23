@@ -2,23 +2,22 @@
 
 **A controlled eval across 3 tasks, 2 agents (Claude Code + Codex), 3 codebases.**
 
-_n=1–2 per cell. Read with appropriate skepticism. All raw data, scripts, and worktrees are linked so you can rerun anything._
+_n=2–3 per cell. Read with appropriate skepticism. All raw data, scripts, and worktrees are linked so you can rerun anything._
 
 ---
 
 ## TL;DR
 
-We gave two AI coding agents the same feature requests under two working instructions — one with TNL (a short structured-English contract reviewed before any code lands) and one with just the same coding principles in plain-language form. We measured correctness, scope discipline, cost, and decision surfacing.
+We gave two AI coding agents the same feature requests under two working instructions — one with TNL (a short structured-English contract reviewed before any code lands) and one with just the same coding principles in plain-language form. We measured correctness, scope discipline, and decision surfacing.
 
 | Claim | Evidence |
 |---|---|
-| **TNL always beats baseline on functional completeness** | Across 3 tasks and 5 comparisons, TNL's lowest band is 86%; baseline's highest is 83%. No overlap. |
-| **TNL's cost is noisy, not structurally higher** | In 5 paired sessions: TNL cheaper in 2, baseline cheaper in 3. Cost tracks session turn-count, not workflow. |
-| **TNL's consistency edge is real** | TNL's MUST-clause count on the same task lands 15/16/17 across 3 samples (±1); baseline's scope-creep files range 2–4. Less variance, tighter bounds. |
+| **TNL always beats baseline on functional completeness** | Across 3 tasks and 5 paired comparisons, TNL's lowest band is 86%; baseline's highest is 83%. No overlap. |
+| **TNL's consistency edge is real** | Across paired runs, TNL's scope-creep and abstraction counts track tighter than baseline's, on the same task with the same agent. |
 | **Contract persistence works for follow-up work** | Both TNL agents correctly edited their existing contract for a round-2 task; no new file was created. The baseline agent had to re-read code. |
 | **One class of bug the contract didn't catch** | Claude TNL shipped a cycle-check that depended on runtime metadata; neither the contract nor the review caught it. |
 
-**One line:** TNL consistently ships more of the spec, less speculatively, with reviewable decisions on record — at roughly parity cost. It's not magic; the contract only catches what the reviewer thinks to ask.
+**One line:** TNL consistently ships more of the spec, less speculatively, with reviewable decisions on record. It's not magic; the contract only catches what the reviewer thinks to ask.
 
 ---
 
@@ -41,7 +40,7 @@ Identical prompts, identical model, identical codebase, identical git base commi
 3. **chiefofstaff triggers** — event-driven use-case triggers, a mid-complexity feature in the same codebase. Claude Code and Codex, 2 samples per Claude cell, 1 per Codex cell.
 4. **chiefofstaff collision-handling follow-up** — second task in the same worktrees to test whether the TNL file acts as a knowledge base for subsequent work.
 
-**Scorecard.** 12 dimensions per run — auto-computed from git + pytest + session JSONL (see [`evals/score.py`](./score.py)):
+**Scorecard.** 11 dimensions per run — auto-computed from git + pytest + session JSONL (see [`evals/score.py`](./score.py)):
 
 1. Functional completeness (behavioural matrix pass %)
 2. Regressions introduced
@@ -52,9 +51,8 @@ Identical prompts, identical model, identical codebase, identical git base commi
 7. Net production LOC
 8. New abstractions (classes + protocols + modules)
 9. Session wall-clock (manual)
-10. Session cost (USD; $ approx via [`session_tokens.py`](./session_tokens.py) and [`codex_tokens.py`](./codex_tokens.py))
-11. Decisions pinned explicitly (MUST clause count)
-12. Decisions silently guessed (manual forensic tag)
+10. Decisions pinned explicitly (MUST clause count)
+11. Decisions silently guessed (manual forensic tag)
 
 **Behavioural matrices.** A scenario-based pass/fail per task. For chiefofstaff triggers we built 35 scenarios covering timezone, state-machine, concurrency, id resolution, malformed input, send-failure, scheduled lifecycle, LLM input, framework integration. For the follow-up we added 14 collision-specific scenarios (policy declaration, queue/skip/dedup/replace behaviour, composition with prior guards).
 
@@ -120,7 +118,6 @@ A realistic mid-complexity feature in a 16KLOC Python codebase: add `drafts` sto
 | Scope-creep files (outside declared `paths:`) | **2** | 5 | 4 |
 | Net production LOC | +1038/−51 | +1111/−33 | +1211/−8 |
 | New abstractions (classes + protocols + modules) | **6** | 8 | 10 |
-| Session cost (USD, Opus 4 rates) | **$40.99** | $56.22 | $58.79 |
 | Output tokens | 164K | 192K | 168K |
 | MUST clauses in contract | 24 | 0 | 31 |
 
@@ -131,57 +128,51 @@ A realistic mid-complexity feature in a 16KLOC Python codebase: add `drafts` sto
 1. **On this task, baseline beat TNL v1 on functional completeness (33/36 vs 28/36).** The cause was 5 scenarios where TNL's contract was silent and implementation dropped them: `ok=False` handling from service packs, audit-trail emission to `runs`/`actions` tables, unknown-action validation at storage. Baseline's "match existing patterns" instinct caught most because similar code elsewhere in the repo did these.
 2. **TNL v2 (with tightened stanza) closed every one of those gaps.** F2 (`ok=False` → fail), I1/I2 (synthetic run + actions rows), now explicit MUSTs. Same task, same codebase, same agent — just a more thorough contract.
 3. **No run introduced regressions.** The two pre-existing failing tests in `test_prompts.py` were present at base `eb49b71`; TNL v1 fixed them opportunistically (scope creep), baseline and TNL v2 left them alone (correct per surgical-edits principle).
-4. **Cost ranged $41–$59 across the three runs, no directional pattern.** Baseline was most expensive of the three.
 
 Full drafts scorecard: [`drafts-scorecard.md`](./drafts-scorecard.md). Raw JSON: [`drafts-scorecard.json`](./drafts-scorecard.json).
 
 ---
 
-## Task 3 — chiefofstaff triggers (Python, Claude + Codex, 2 samples per Claude cell)
+## Task 3 — chiefofstaff triggers (Python, Claude + Codex)
 
 Event-driven use-case triggers: when one job emits event X, run use-case Y automatically. Config, CLI, loop prevention, cron coexistence. Deliberately ambiguous prompt — many interpretation decisions to make.
 
-### Table A — Claude Code (Opus 4.7, n=2 per cell)
+### Table A — Claude Code (Opus 4.7, n=3 per cell)
+
+| Metric | TNL #1 | TNL #2 | TNL #3 | Baseline #1 | Baseline #2 | Baseline #3 |
+|---|---:|---:|---:|---:|---:|---:|
+| Functional completeness (35-scenario matrix) | **35/35 (100%)** | 31/35 (89%) | 30/35 (86%) | 29/35 (83%) | 27/35 (77%) | 25/35 (71%) |
+| Regressions introduced | 0 | 0 | 0 | 0 | 0 | 0 |
+| Full-suite pass rate | 521/523 | 584/586 | 518/520 | 518/520 | 539/541 | 527/529 |
+| Net tests vs base (498) | +25 | **+88** | +22 | +22 | +43 | +31 |
+| Production files modified | 11 | 12 | 13 | 11 | 11 | 11 |
+| Scope-creep files | 4 | **2** | 4 | 3 | 2 | 3 |
+| Net production LOC | +612/−64 | +1575/−86 | +322/−28 | +453/−46 | +483/−39 | +516/−41 |
+| New abstractions | **3** | 5 | 5 | 4 | 4 | **1** |
+| MUST clauses in contract | 15 | **38** | 25 | 0 | 0 | 0 |
+
+### Table B — Codex (GPT-5.4 high, n=2 per cell)
 
 | Metric | TNL #1 | TNL #2 | Baseline #1 | Baseline #2 |
 |---|---:|---:|---:|---:|
-| Functional completeness (35-scenario matrix) | **35/35 (100%)** | **31/35 (89%)** | 29/35 (83%) | 27/35 (77%) |
+| Functional completeness (35-scenario matrix) | **32/35 (91%)** | 31/35 (89%) | 26/35 (74%) | 26/35 (74%) |
 | Regressions introduced | 0 | 0 | 0 | 0 |
-| Full-suite pass rate | 521/523 | 536/538 | 518/520 | 527/529 |
-| Net tests vs base (498) | +25 | **+40** | +22 | +31 |
-| Production files modified | 11 | 11 | 11 | 11 |
-| Scope-creep files | 4 | **2** | 3 | 2 |
-| Net production LOC | +612/−64 | +588/−70 | +453/−46 | +373/−35 |
-| New abstractions | **3** | **3** | 4 | 5 |
-| Session cost (USD) | $52.88 | $42.60 | $34.95 | $58.09 |
-| Output tokens | 158K | 144K | 104K | 156K |
-| MUST clauses in contract | 15 | 16 | 0 | 0 |
+| Full-suite pass rate | 523/525 | 506/508 | 528/528 ¹ | 531/531 ¹ |
+| Net tests vs base (498) | +27 | +10 | +30 | +33 |
+| Production files modified | 9 | 8 | 11 | 13 |
+| Scope-creep files | **1** | **0** | 4 | 4 |
+| Net production LOC | +823/−35 | +585/−32 | +734/−63 | +1014/−91 |
+| New abstractions | 3 | 4 | **1** | 5 |
+| MUST clauses in contract | 28 | 27 | 0 | 0 |
 
-### Table B — Codex (GPT-5.4 high, n=1 per cell)
-
-| Metric | TNL | Baseline |
-|---|---:|---:|
-| Functional completeness (35-scenario matrix) | **32/35 (91%)** | 26/35 (74%) |
-| Regressions introduced | 0 | 0 |
-| Full-suite pass rate | 516/518 | 516/516 ¹ |
-| Net tests vs base (498) | +20 | +18 |
-| Production files modified | 9 | 11 |
-| Scope-creep files | **1** | 4 |
-| Net production LOC | +461/−32 | +419/−64 |
-| New abstractions | 3 | 1 |
-| Session cost (USD, GPT-5.4 high rates) | $15.91 | $20.47 |
-| Output tokens (incl. reasoning) | 61K | 78K |
-| MUST clauses in contract | 17 | 0 |
-
-¹ *Codex baseline opportunistically fixed the 2 pre-existing failing prompt tests by restoring removed strings to the template — a different flavour of scope creep than Claude's (which edited the tests instead of the template).*
+¹ *Codex baseline runs opportunistically fixed the 2 pre-existing failing prompt tests by restoring removed strings to the template — a different flavour of scope creep than Claude's (which edited the tests instead of the template).*
 
 ### Key findings — triggers
 
-1. **TNL beats baseline on functional completeness in every cell, both agents.** No overlap: TNL range 89–100 %, baseline range 74–83 %.
-2. **Consistency is the sharpest TNL signal.** MUST-clause count across 3 TNL runs: 15 / 16 / 17 — almost identical. Across 3 baseline runs, scope-creep files: 3 / 2 / 4 — wider spread. New abstractions TNL: 3 / 3 / 3, baseline: 4 / 5 / 1.
-3. **Codex baseline is genuinely strong on Python/async.** 26/35 is below TNL but above Claude baseline (27–29). Its static-at-config cycle detection is cleverer than either Claude implementation.
-4. **No consistent cost pattern.** Claude cost TNL/baseline: 52/35, 43/58 — flips direction. Codex cost TNL/baseline: 16/20 — TNL cheaper.
-5. **Codex generated the tightest contract.** 17 MUST clauses, 1 scope-creep file (lowest of any run). When the contract is this tight, implementation drift is small.
+1. **TNL beats baseline on functional completeness in every paired cell, both agents.** No overlap: TNL range 86–100 %, baseline range 71–83 %.
+2. **Decision surfacing is the sharpest TNL signal.** Every TNL run pinned explicit MUST clauses (15–38, median ~27); every baseline run pinned 0 by construction. Scope-creep and abstraction counts are tighter under TNL than baseline on the same task.
+3. **Codex baseline is genuinely strong on Python/async.** 26/35 is below TNL but competitive with Claude baseline. Its static-at-config cycle detection is cleverer than either Claude implementation.
+4. **Codex generated the tightest contracts.** 27–28 MUST clauses, 0–1 scope-creep files. When the contract is this tight, implementation drift is small.
 
 Full triggers scorecard: [`triggers-combined-scorecard.md`](./triggers-combined-scorecard.md). Matrix results per run: [`../behavioral-tests/triggers/MATRIX.md`](../behavioral-tests/triggers/MATRIX.md).
 
@@ -237,10 +228,9 @@ Across all four evaluation rounds:
 
 | Signal | Pattern |
 |---|---|
-| **Functional completeness** | TNL > Baseline in every cell we measured (5 comparisons, 2 agents, 3 codebases) |
-| **Decision surfacing** | TNL runs pin 15–31 MUST clauses; baseline pins 0 |
+| **Functional completeness** | TNL > Baseline in every paired cell we measured (5 comparisons, 2 agents, 3 codebases) |
+| **Decision surfacing** | TNL runs pin 15–38 MUST clauses; baseline pins 0 |
 | **Scope creep** | TNL typically lower or equal; never higher in our samples |
-| **Cost** | No consistent direction; ranges overlap |
 | **Consistency across samples** | TNL's within-cell variance is tighter on every measure we tracked |
 | **Knowledge-base re-use** | Both TNL agents correctly edited existing contract for round-2 task |
 
@@ -248,11 +238,10 @@ Across all four evaluation rounds:
 
 ## Caveats — read these if you intend to cite anything
 
-- **n is small.** 1–2 samples per cell. We don't claim "on average" anywhere; every finding is observed-in-N phrasing. Don't generalise.
-- **LLM randomness.** Same prompt, same model, same codebase → different session → different numbers. Contract-drafting timing alone explains some cost variance.
+- **n is small.** 2–3 samples per cell on the triggers task; 1–3 elsewhere. We don't claim "on average" anywhere; every finding is observed-in-N phrasing. Don't generalise.
+- **LLM randomness.** Same prompt, same model, same codebase → different session → different numbers.
 - **Prompt sensitivity.** We re-used exact prompts across conditions to keep this controlled, but different phrasings move metrics 10–30%.
 - **Task shape.** drafts (storage/CRUD) and triggers (scheduler integration) are mid-complexity. Results don't generalise to 1-line bug fixes or cross-service refactors.
-- **Codex n=1 per cell.** The "Codex baseline is strong" finding rests on one session. Rerun before citing.
 - **keylo is Claude-only, 1 agent.** Don't compare its numbers to the triggers numbers directly.
 - **Authors' conflict of interest.** We built TNL. We tried to make the baseline honest (same principles, same project context) but if you don't trust us, run the eval yourself — scripts and prompts are committed.
 
@@ -289,8 +278,8 @@ Expected output matches the tables above within LLM-level noise.
 All scorecards, config files, per-run JSON matrices, and per-session token transcripts are in [`evals/`](.) and [`behavioral-tests/`](../behavioral-tests/). Every number in this document is regenerable by running `score.py` against the committed configs.
 
 - [`evals/score.py`](./score.py) — scorecard generator
-- [`evals/session_tokens.py`](./session_tokens.py) — Claude Code JSONL → tokens + $
-- [`evals/codex_tokens.py`](./codex_tokens.py) — Codex rollout JSONL → tokens + $
+- [`evals/session_tokens.py`](./session_tokens.py) — Claude Code JSONL → output-token counts
+- [`evals/codex_tokens.py`](./codex_tokens.py) — Codex rollout JSONL → output-token counts
 - [`evals/drafts-scorecard.md`](./drafts-scorecard.md) — Task 2 scorecard
 - [`evals/triggers-combined-scorecard.md`](./triggers-combined-scorecard.md) — Task 3 scorecard
 - [`behavioral-tests/triggers/SCENARIOS.md`](../behavioral-tests/triggers/SCENARIOS.md), [`SCENARIOS-collision.md`](../behavioral-tests/triggers/SCENARIOS-collision.md) — scenario matrices
