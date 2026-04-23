@@ -1,6 +1,6 @@
 {
   "name": "typed-nl",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0",
   "description": "TNL — Typed Natural Language: structured English contracts for coding agents. CLI + MCP server + layered verifier.",
   "type": "module",
   "author": "Janarthanan Rajendran <janaraj84@gmail.com>",
