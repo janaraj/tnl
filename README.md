@@ -1,10 +1,8 @@
 # TNL — Typed Natural Language
 
-Plan mode works, for one session. TNL is that discipline, made persistent and structured: a per-feature contract with a fixed schema — proposed by the agent, approved by you, implemented against, saved on disk, and read by every future session.
+AI coding agents make design decisions silently, drift from what was planned, and lose context at session end. TNL (Typed Natural Language) is the fix: a per-feature English contract with a fixed schema — proposed by the agent, approved by you, implemented against, saved on disk, and read by every future session. If you've used plan mode in Claude Code, this is the same discipline made compact, persistent, and machine-checkable.
 
-## Think of it as plan mode with a schema
-
-If you've used **plan mode** in Claude Code, you know the pattern: before the agent writes any code, it proposes a plan, you review, you approve, then code lands. TNL is the same discipline — but with a fixed schema, saved to disk, and machine-checkable.
+## The schema
 
 The schema is seven fields:
 
