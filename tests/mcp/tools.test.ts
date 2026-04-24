@@ -48,6 +48,41 @@ describe('handleListTools', () => {
     const result = handleListTools(new Map());
     expect(result.tools).toEqual([]);
   });
+
+  it('passes through title and annotations verbatim when set on a tool', () => {
+    const registry = new Map<string, McpTool>();
+    const rich: McpTool = {
+      ...tool('rich'),
+      title: 'Rich Tool',
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    };
+    registry.set(rich.name, rich);
+    const result = handleListTools(registry);
+    expect(result.tools).toHaveLength(1);
+    const entry = result.tools[0]!;
+    expect(entry.title).toBe('Rich Tool');
+    expect(entry.annotations).toEqual({
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    });
+  });
+
+  it('omits title and annotations (no `undefined` keys) when not set', () => {
+    const registry = new Map<string, McpTool>();
+    registry.set('plain', tool('plain'));
+    const result = handleListTools(registry);
+    expect(result.tools).toHaveLength(1);
+    const entry = result.tools[0]!;
+    expect(Object.hasOwn(entry, 'title')).toBe(false);
+    expect(Object.hasOwn(entry, 'annotations')).toBe(false);
+  });
 });
 
 describe('handleCallTool', () => {

@@ -65,8 +65,13 @@ export function createVerifyTool(
   const cwd = options.cwd ?? process.cwd();
   return {
     name: 'verify',
+    title: 'Verify TNLs',
     description:
       'Verify the TNLs impacted by a set of code paths. Returns a structured report; verify failures are data, not isError.',
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: 'object',
       properties: {

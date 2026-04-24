@@ -21,8 +21,15 @@ export function createApproveTnlDiffTool(
   const cwd = options.cwd ?? process.cwd();
   return {
     name: 'approve_tnl_diff',
+    title: 'Approve TNL diff',
     description:
       'Apply a staged proposal: write each tnl/<id>.tnl, regenerate its sidecar, and remove the staging record.',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: 'object',
       properties: {

@@ -3,32 +3,50 @@ export interface McpToolResult {
   isError?: boolean;
 }
 
+export interface McpToolAnnotations {
+  readOnlyHint?: boolean;
+  destructiveHint?: boolean;
+  idempotentHint?: boolean;
+  openWorldHint?: boolean;
+}
+
 export interface McpTool {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
   handler: (args: unknown) => Promise<McpToolResult> | McpToolResult;
+  title?: string;
+  annotations?: McpToolAnnotations;
 }
 
 export const mcpTools: Map<string, McpTool> = new Map();
 
+export interface ListToolsResultEntry {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  title?: string;
+  annotations?: McpToolAnnotations;
+}
+
 export interface ListToolsResult {
-  tools: Array<{
-    name: string;
-    description: string;
-    inputSchema: Record<string, unknown>;
-  }>;
+  tools: ListToolsResultEntry[];
 }
 
 export function handleListTools(
   registry: Map<string, McpTool> = mcpTools,
 ): ListToolsResult {
   return {
-    tools: Array.from(registry.values()).map((t) => ({
-      name: t.name,
-      description: t.description,
-      inputSchema: t.inputSchema,
-    })),
+    tools: Array.from(registry.values()).map((t) => {
+      const entry: ListToolsResultEntry = {
+        name: t.name,
+        description: t.description,
+        inputSchema: t.inputSchema,
+      };
+      if (t.title !== undefined) entry.title = t.title;
+      if (t.annotations !== undefined) entry.annotations = t.annotations;
+      return entry;
+    }),
   };
 }
 

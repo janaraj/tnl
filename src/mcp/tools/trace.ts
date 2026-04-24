@@ -19,8 +19,15 @@ export function createTraceTool(): McpTool {
 
   return {
     name: 'trace',
+    title: 'Trace TNL usage',
     description:
       'Record or read session events documenting how TNL was used. Pass `event` to record; omit it to read.',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: 'object',
       properties: {

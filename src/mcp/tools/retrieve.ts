@@ -29,8 +29,13 @@ export function createRetrieveTnlTool(
   const cwd = options.cwd ?? process.cwd();
   return {
     name: 'retrieve_tnl',
+    title: 'Retrieve TNL',
     description:
       'Return the verbatim content of TNL units identified by id. Ids with no matching file are listed in notFound.',
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: 'object',
       properties: {

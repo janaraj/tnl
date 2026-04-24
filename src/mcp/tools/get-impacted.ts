@@ -18,8 +18,13 @@ export function createGetImpactedTool(
   const cwd = options.cwd ?? process.cwd();
   return {
     name: 'get_impacted_tnls',
+    title: 'Get impacted TNLs',
     description:
       'Return TNL units whose declared paths overlap with any of the given code paths. Repo-wide units are always included.',
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: 'object',
       properties: {

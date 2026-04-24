@@ -23,8 +23,15 @@ export function createProposeTnlDiffTool(
   const cwd = options.cwd ?? process.cwd();
   return {
     name: 'propose_tnl_diff',
+    title: 'Propose TNL diff',
     description:
       'Stage a proposed TNL change (batch of creates and updates) for human review. Returns a diff_id for later approve_tnl_diff.',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: 'object',
       properties: {
