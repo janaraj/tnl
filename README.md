@@ -85,8 +85,14 @@ Headline task: add event-driven triggers to a 16KLOC Python codebase. 35 behavio
 | Claude Code Opus 4.7 | 3 | 30/35 | 25/35 | +5 |
 | Codex GPT-5.4 high | 1 | 32/35 | 26/35 | +6 |
 | Codex GPT-5.4 high | 2 | 31/35 | 26/35 | +5 |
+| Codex GPT-5.5 | 1 | 32/35 | 29/35 | +3 |
+| Codex GPT-5.5 | 2 | — ¹ | 30/35 | — |
 
-**TNL was ahead of baseline in every paired cell across both models.** Gap ranges +4 to +6 scenarios.
+¹ Second GPT-5.5 baseline has no paired TNL run; averaged baseline across the two GPT-5.5 runs is **29.5/35**.
+
+**TNL was ahead of baseline in every paired cell across models.** Gap ranges +3 to +6 scenarios.
+
+**Model scaling.** The gap narrows as the underlying agent gets stronger: baseline on the same task jumped from 26/35 (Codex GPT-5.4, avg of 2 runs) to 29.5/35 (Codex GPT-5.5, avg of 2 runs) with no change to the codebase or prompt. The contract step still helps, but it helps less when the agent already writes disciplined code on its own.
 
 Other signals:
 

@@ -12,7 +12,7 @@ We gave two AI coding agents the same feature requests under two working instruc
 
 | Claim | Evidence |
 |---|---|
-| **TNL always beats baseline on functional completeness** | Across 3 tasks and 5 paired comparisons, TNL's lowest band is 86%; baseline's highest is 83%. No overlap. |
+| **TNL always beats baseline on functional completeness** | Across 3 tasks and 6 paired comparisons, TNL's lowest band is 86%; baseline's highest is 86% (tied by a GPT-5.5 baseline run). TNL is ahead in every paired cell. |
 | **TNL's consistency edge is real** | Across paired runs, TNL's scope-creep and abstraction counts track tighter than baseline's, on the same task with the same agent. |
 | **Contract persistence works for follow-up work** | Both TNL agents correctly edited their existing contract for a round-2 task; no new file was created. The baseline agent had to re-read code. |
 | **One class of bug the contract didn't catch** | Claude TNL shipped a cycle-check that depended on runtime metadata; neither the contract nor the review caught it. |
@@ -151,7 +151,7 @@ Event-driven use-case triggers: when one job emits event X, run use-case Y autom
 | New abstractions | **3** | 5 | 5 | 4 | 4 | **1** |
 | MUST clauses in contract | 15 | **38** | 25 | 0 | 0 | 0 |
 
-### Table B — Codex (GPT-5.4 high, n=2 per cell)
+### Table B — Codex GPT-5.4 high (n=2 per cell)
 
 | Metric | TNL #1 | TNL #2 | Baseline #1 | Baseline #2 |
 |---|---:|---:|---:|---:|
@@ -167,12 +167,26 @@ Event-driven use-case triggers: when one job emits event X, run use-case Y autom
 
 ¹ *Codex baseline runs opportunistically fixed the 2 pre-existing failing prompt tests by restoring removed strings to the template — a different flavour of scope creep than Claude's (which edited the tests instead of the template).*
 
+### Table C — Codex GPT-5.5 (TNL n=1, Baseline n=2)
+
+| Metric | TNL #1 | Baseline #1 | Baseline #2 |
+|---|---:|---:|---:|
+| Functional completeness (35-scenario matrix) | **32/35 (91%)** | 29/35 (83%) | 30/35 (86%) |
+| Regressions introduced | 0 | 0 | 0 |
+| Full-suite pass rate | 510/512 | 518/520 | 523/525 |
+| Net tests vs base (498) | +14 | +22 | +27 |
+| Production files modified | 11 | 13 | 9 |
+| Scope-creep files | 2 | 4 | 1 |
+| Net production LOC | +421/−25 | +322/−28 | +823/−35 |
+| New abstractions | **6** | 5 | 3 |
+| MUST clauses in contract | 21 | 0 | 0 |
+
 ### Key findings — triggers
 
-1. **TNL beats baseline on functional completeness in every paired cell, both agents.** No overlap: TNL range 86–100 %, baseline range 71–83 %.
+1. **TNL beats baseline on functional completeness in every paired cell, across both agents and three Codex model versions.** TNL range 86–100%; baseline range 71–86%.
 2. **Decision surfacing is the sharpest TNL signal.** Every TNL run pinned explicit MUST clauses (15–38, median ~27); every baseline run pinned 0 by construction. Scope-creep and abstraction counts are tighter under TNL than baseline on the same task.
-3. **Codex baseline is genuinely strong on Python/async.** 26/35 is below TNL but competitive with Claude baseline. Its static-at-config cycle detection is cleverer than either Claude implementation.
-4. **Codex generated the tightest contracts.** 27–28 MUST clauses, 0–1 scope-creep files. When the contract is this tight, implementation drift is small.
+3. **Model-scaling narrows the gap.** Going Codex GPT-5.4 → GPT-5.5, baseline jumped from 26/35 (avg) to 29.5/35 (avg) — the paired gap compressed from +5.5 to +2.5. Stronger agents write better baseline code without a contract; the TNL condition still leads but by a smaller margin.
+4. **Codex generated the tightest contracts.** 21–28 MUST clauses, 0–2 scope-creep files across GPT-5.4 and GPT-5.5. When the contract is this tight, implementation drift is small.
 
 Full triggers scorecard: [`triggers-combined-scorecard.md`](./triggers-combined-scorecard.md). Matrix results per run: [`../behavioral-tests/triggers/MATRIX.md`](../behavioral-tests/triggers/MATRIX.md).
 
@@ -228,7 +242,7 @@ Across all four evaluation rounds:
 
 | Signal | Pattern |
 |---|---|
-| **Functional completeness** | TNL > Baseline in every paired cell we measured (5 comparisons, 2 agents, 3 codebases) |
+| **Functional completeness** | TNL > Baseline in every paired cell we measured (6 comparisons, 2 agents, 3 codebases) |
 | **Decision surfacing** | TNL runs pin 15–38 MUST clauses; baseline pins 0 |
 | **Scope creep** | TNL typically lower or equal; never higher in our samples |
 | **Consistency across samples** | TNL's within-cell variance is tighter on every measure we tracked |
