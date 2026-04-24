@@ -157,6 +157,85 @@ describe('parseTnl — block-list machine fields', () => {
   });
 });
 
+describe('parseTnl — multi-line bracket form and quoted items', () => {
+  it('accepts multi-line bracket form for paths and parses identically to inline', () => {
+    const multiSrc = MINIMAL_FEATURE.replace(
+      'paths: [src/foo.ts]',
+      'paths: [\n  src/foo.ts,\n  src/bar.ts,\n  src/baz.ts\n]',
+    );
+    const inlineSrc = MINIMAL_FEATURE.replace(
+      'paths: [src/foo.ts]',
+      'paths: [src/foo.ts, src/bar.ts, src/baz.ts]',
+    );
+    expect(parseTnl(multiSrc).machine.paths).toEqual(
+      parseTnl(inlineSrc).machine.paths,
+    );
+    expect(parseTnl(multiSrc).machine.paths).toEqual([
+      'src/foo.ts',
+      'src/bar.ts',
+      'src/baz.ts',
+    ]);
+  });
+
+  it('strips outer double quotes from bracket-list items', () => {
+    const src = MINIMAL_FEATURE.replace(
+      'paths: [src/foo.ts]',
+      'paths: ["src/foo.ts", "src/bar.ts"]',
+    );
+    expect(parseTnl(src).machine.paths).toEqual([
+      'src/foo.ts',
+      'src/bar.ts',
+    ]);
+  });
+
+  it('strips outer single quotes from bracket-list items', () => {
+    const src = MINIMAL_FEATURE.replace(
+      'paths: [src/foo.ts]',
+      "paths: ['src/foo.ts', 'src/bar.ts']",
+    );
+    expect(parseTnl(src).machine.paths).toEqual([
+      'src/foo.ts',
+      'src/bar.ts',
+    ]);
+  });
+
+  it('handles mixed quoted and unquoted items consistently (all unquoted)', () => {
+    const src = MINIMAL_FEATURE.replace(
+      'paths: [src/foo.ts]',
+      'paths: ["src/foo.ts", src/bar.ts, \'src/baz.ts\']',
+    );
+    expect(parseTnl(src).machine.paths).toEqual([
+      'src/foo.ts',
+      'src/bar.ts',
+      'src/baz.ts',
+    ]);
+  });
+
+  it('strips quotes inside a multi-line bracket (realistic surfaces example)', () => {
+    const src =
+      MINIMAL_FEATURE +
+      `surfaces: [
+  "chiefofstaff triggers list",
+  "chiefofstaff triggers history",
+  "scheduler EventBus.emit"
+]
+`;
+    expect(parseTnl(src).machine.surfaces).toEqual([
+      'chiefofstaff triggers list',
+      'chiefofstaff triggers history',
+      'scheduler EventBus.emit',
+    ]);
+  });
+
+  it('raises TnlParseError when multi-line bracket is unclosed before EOF', () => {
+    const src = MINIMAL_FEATURE.replace(
+      'paths: [src/foo.ts]',
+      'paths: [\n  src/foo.ts,\n  src/bar.ts',
+    );
+    expect(() => parseTnl(src)).toThrow(/multi-line bracket list is not closed/);
+  });
+});
+
 describe('parseTnl — machine zone validation', () => {
   it('rejects missing id', () => {
     const src = MINIMAL_FEATURE.replace('id: example\n', '');

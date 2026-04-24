@@ -85,7 +85,8 @@ export function parseTnl(source: string, sourcePath?: string): TnlFile {
   let currentSection: string | null = null;
   let currentMachineBlockList: string | null = null;
 
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
     if (line.text.trim() === '') {
       if (currentSection) sections[currentSection]!.push(line);
       continue;
@@ -99,7 +100,36 @@ export function parseTnl(source: string, sourcePath?: string): TnlFile {
         throw new TnlParseError(line.number, `malformed line: '${line.raw}'`);
       }
       const key = m[1]!;
-      const value = m[2]!.trim();
+      let value = m[2]!.trim();
+
+      // Multi-line bracket form: if the value opens a bracket-list but doesn't
+      // close it on this line, consume subsequent lines (any indentation) until
+      // the matching `]` is found. EOF without closure is a parse error.
+      if (
+        MACHINE_KEYS.has(key) &&
+        LIST_MACHINE_FIELDS.has(key) &&
+        value.startsWith('[') &&
+        !value.includes(']')
+      ) {
+        const startLine = line.number;
+        let closed = false;
+        while (i + 1 < lines.length) {
+          i += 1;
+          const next = lines[i]!;
+          value += ' ' + next.text.trim();
+          if (next.text.includes(']')) {
+            closed = true;
+            break;
+          }
+        }
+        if (!closed) {
+          throw new TnlParseError(
+            startLine,
+            `machine-zone field '${key}' multi-line bracket list is not closed before end of file`,
+          );
+        }
+        value = value.trim();
+      }
 
       if (value === '') {
         if (SECTION_KEYS.has(key)) {
@@ -284,8 +314,18 @@ function parseListValue(raw: MachineRaw, fieldName: string): string[] {
   if (inside === '') return [];
   return inside
     .split(',')
-    .map((s) => s.trim())
+    .map((s) => stripOuterQuotes(s.trim()))
     .filter((s) => s !== '');
+}
+
+function stripOuterQuotes(s: string): string {
+  if (s.length < 2) return s;
+  const first = s[0];
+  const last = s[s.length - 1];
+  if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+    return s.slice(1, -1);
+  }
+  return s;
 }
 
 function extractProse(lines: SourceLine[]): string {
