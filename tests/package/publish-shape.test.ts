@@ -19,7 +19,7 @@ describe('npm-publish-shape', () => {
 
   it('has name, version, description, type, bin set', () => {
     expect(pkg.name).toBe('typed-nl');
-    expect(pkg.version).toMatch(/^0\.1\.0(-[0-9a-z.]+)?$/);
+    expect(pkg.version).toMatch(/^0\.1\.\d+(-[0-9a-z.]+)?$/);
     expect(pkg.description).toMatch(/TNL/);
     expect(pkg.type).toBe('module');
     expect(pkg.bin).toEqual({
