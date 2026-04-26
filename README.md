@@ -165,7 +165,7 @@ For Codex: `--agent codex` (writes `AGENTS.md`). For Gemini: `--agent gemini` (w
 
 ### 2. Author your first TNL
 
-Start a Claude Code (or Codex / Gemini) session and ask for any feature. The agent, guided by the CLAUDE.md stanza, will:
+Start a Claude Code (or Codex / Gemini / Cursor) session and ask for any feature. The agent, guided by the workflow stanza, will:
 
 1. **Scope** the request — check for existing TNLs that cover it.
 2. **Clarify** ambiguous requirements by asking questions.
@@ -205,7 +205,7 @@ What each capability gives you:
 
 | Capability | Added by default (omit `--minimal`) | What it does |
 |---|---|---|
-| MCP server | yes | Registers `tnl` in `.mcp.json` / `.codex/config.toml` / `.gemini/settings.json`. Agent gains 6 tools: retrieve, propose, approve, verify, impacted, trace. |
+| MCP server | yes | Registers `tnl` in `.mcp.json` / `.codex/config.toml` / `.gemini/settings.json` / `.cursor/mcp.json`. Agent gains 6 tools: retrieve, propose, approve, verify, impacted, trace. |
 | PreToolUse hook | yes (Claude) | `.claude/settings.json` hook auto-injects impacted TNLs as context on every `Edit` / `Write`. |
 | CI workflow | yes | `.github/workflows/tnl-verify.yml` runs `tnl verify` on push + PR. |
 | `/tnl-feature` skill | no (opt-in via `--with-skill`) | Claude Code slash command for explicit invocation. |
@@ -235,7 +235,7 @@ tnl test-plan <id>        # list test-backed clauses for a unit
 | `--with-skill` | off | (Claude only) Install `/tnl-feature` slash command |
 | `--local-install` | off | (Dev-only) Rewrite configs to absolute local `node dist/...` paths |
 
-Without `--agent`, init auto-detects targets (`.claude/` → Claude; `AGENTS.md` → Codex; `GEMINI.md` → Gemini). Re-running `tnl init` is safe — existing files are detected and upgraded when the bundled template evolves.
+Without `--agent`, init auto-detects targets (`.claude/` → Claude; `AGENTS.md` → Codex; `GEMINI.md` → Gemini; `.cursor/` → Cursor). Re-running `tnl init` is safe — existing files are detected and upgraded when the bundled template evolves.
 
 ---
 
