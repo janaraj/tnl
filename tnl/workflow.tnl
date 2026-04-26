@@ -10,12 +10,13 @@ intent:
   and address recurring failure modes in agent-driven development.
 
 behaviors:
-  - When a request admits more than one reasonable interpretation, the agent MUST ask clarifying questions before proposing a TNL or writing code. The agent MUST NOT lock in a single interpretation without surfacing it for review first.
+  - When a request admits more than one reasonable interpretation, the agent MUST ask clarifying questions before proposing a TNL or writing code. Before locking interpretation, the agent MUST also surface — across the dimensions every system has — what it accepts and rejects (inputs), what it produces in success and error cases (outputs), what it interfaces with (boundaries — other code, services, processes, filesystem, network), and what signals confirm correct operation (observability). Categories with no relevant clauses MAY be left implicit, but the agent MUST be able to state why if asked. The agent MUST NOT lock in a single interpretation without surfacing it for review first.
   - The agent MUST write the code the request actually calls for, and no more. Additional abstractions, helpers, generic utilities, and configuration hooks MUST NOT be introduced unless a clause demands them — three similar lines beat a premature abstraction. Do not generalize for hypothetical future needs.
   - The agent MUST modify only code directly necessary for the requested change. Refactoring, renaming, or cleaning up neighboring code MUST NOT happen on the way by. Adjacent issues MUST be surfaced separately, not bundled.
   - Before writing code, the agent MUST pin the request to named, verifiable artifacts: file paths, function signatures, test names, or TNL clauses. Fuzzy requirements MUST NOT be implemented directly. If the artifacts can't be named, the agent MUST ask until they can.
   - When adding code to an existing codebase, the agent MUST first identify the conventions in use (naming, error handling, test structure, file organization) and follow them. New patterns MAY be introduced only when no existing pattern fits, and MUST be surfaced explicitly rather than introduced silently.
   - At the end of every task that produced code changes, the agent MUST list each MUST clause from the active TNL files (this file plus any feature TNLs touched) and state for each: (a) satisfied — by which file/function/test, (b) could not satisfy — why, or (c) did not apply — why. The list MUST be exhaustive; silent omission counts as a failure.
+  - A TNL MUST govern one coherent behavioral surface. "Coherent" means: the paths form a bounded set, the MUSTs share a single intent that fits in the `intent:` paragraph without subdivision, and the clauses can be reviewed and approved as a single decision. When a request spans multiple coherent surfaces, the agent MUST propose multiple TNLs — one per surface — not a single TNL covering all of them. Delivery boundaries (phase, milestone, sprint, release) are NOT TNL boundaries; contract scope and delivery scope are independent.
 
 non-goals:
   - These principles do not override feature-specific TNL clauses. When a feature TNL states a MUST that conflicts with or narrows one of these, the feature TNL takes precedence.
@@ -30,3 +31,5 @@ rationale:
     - Fuzzy requirements produce fuzzy implementations with edge cases silently dropped.
     - Introducing new patterns silently creates invisible architectural drift — the codebase gains a second way to do everything, and no one reviewed the split.
     - Exhaustive self-attestation forces the agent to reconcile "what the contract required" against "what I actually wrote," which is where misses have historically been caught.
+    - Describing what the system *is* without naming what it has to *handle* (inputs, outputs, boundaries, observability) lets implementation details be silently chosen at code time; forcing the author across these dimensions catches the gaps before approval.
+    - Conflating delivery scope (phase, sprint, milestone) with contract scope (one coherent surface) produces fat TNLs that aggregate unrelated MUSTs, defeating reviewability and per-feature evolution.
