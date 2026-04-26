@@ -16,7 +16,7 @@ The schema is seven fields:
 
 You approve this *once*, before any code runs. The agent implements against each MUST clause and self-attests at the end — for every MUST, naming the file or test that satisfies it.
 
-**No new tool, no new agent, no new workflow.** TNL slots into whatever agent you already use. Claude Code, Codex, Gemini get first-class `tnl init` with stanza + hooks + MCP. Any agent that reads a Markdown instruction file adopts with a two-step manual copy — the minimum product is a stanza in your instruction file plus a `tnl/` directory. `tnl verify`, the PreToolUse hook that re-surfaces the contract mid-edit, and the MCP server are optional layers on top.
+**No new tool, no new agent, no new workflow.** TNL slots into whatever agent you already use. Claude Code, Codex, Gemini, and Cursor get first-class `tnl init` with stanza + hooks + MCP. Any agent that reads a Markdown instruction file adopts with a two-step manual copy — the minimum product is a stanza in your instruction file plus a `tnl/` directory. `tnl verify`, the PreToolUse hook that re-surfaces the contract mid-edit, and the MCP server are optional layers on top.
 
 ## A TNL file looks like this
 
@@ -161,7 +161,7 @@ This writes only:
 - `tnl/workflow.tnl` — baseline session principles
 - `CLAUDE.md` — TNL workflow stanza appended (or file created if missing)
 
-For Codex: `--agent codex` (writes `AGENTS.md`). For Gemini: `--agent gemini` (writes `GEMINI.md`).
+For Codex: `--agent codex` (writes `AGENTS.md`). For Gemini: `--agent gemini` (writes `GEMINI.md`). For Cursor: `--agent cursor` (writes `AGENTS.md` + `.cursor/mcp.json`).
 
 ### 2. Author your first TNL
 
@@ -227,7 +227,7 @@ tnl test-plan <id>        # list test-backed clauses for a unit
 
 | Flag | Default | Behavior |
 |---|---|---|
-| `--agent claude\|codex\|gemini` | auto-detect | Target one agent; overrides detection |
+| `--agent claude\|codex\|gemini\|cursor` | auto-detect | Target one agent; overrides detection |
 | `--minimal` | off | Scaffold only `tnl/` + instruction-file stanza; skip everything below |
 | `--no-ci` | off | Skip `.github/workflows/tnl-verify.yml` |
 | `--no-mcp` | off | Skip MCP server registration |

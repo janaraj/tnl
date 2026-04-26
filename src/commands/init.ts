@@ -4,13 +4,14 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defaultRegistry, type Command, type CommandArgs } from '../cli.js';
 
-type AgentName = 'claude' | 'codex' | 'gemini';
-const ALLOWED_AGENTS: readonly AgentName[] = ['claude', 'codex', 'gemini'] as const;
+type AgentName = 'claude' | 'codex' | 'gemini' | 'cursor';
+const ALLOWED_AGENTS: readonly AgentName[] = ['claude', 'codex', 'gemini', 'cursor'] as const;
 
 const INSTRUCTION_FILES: Record<AgentName, string> = {
   claude: 'CLAUDE.md',
   codex: 'AGENTS.md',
   gemini: 'GEMINI.md',
+  cursor: 'AGENTS.md',
 };
 
 const STANZA_START_PREFIX = '<!-- tnl:workflow-stanza:start hash=';
@@ -300,11 +301,14 @@ export function runInit(options: InitOptions = {}): number {
 
   if (targets.length === 0) {
     warnings.push(
-      'No agent detected (no .claude/, AGENTS.md, or GEMINI.md in cwd) and --agent not passed. Skipped instruction-file stanza. Run `tnl init --agent <claude|codex|gemini>` to add one.',
+      'No agent detected (no .claude/, AGENTS.md, GEMINI.md, or .cursor/ in cwd) and --agent not passed. Skipped instruction-file stanza. Run `tnl init --agent <claude|codex|gemini|cursor>` to add one.',
     );
   } else {
+    const filesProcessed = new Set<string>();
     for (const agent of targets) {
       const file = INSTRUCTION_FILES[agent];
+      if (filesProcessed.has(file)) continue;
+      filesProcessed.add(file);
       const filePath = join(cwd, file);
       const body =
         agent === 'claude' && withSkill
@@ -375,6 +379,14 @@ export function runInit(options: InitOptions = {}): number {
         suppressed.push('.codex/config.toml');
       } else {
         installCodexMcpConfig(cwd, created, skipped, warnings, templates);
+      }
+    }
+
+    if (targets.includes('cursor')) {
+      if (noMcp) {
+        suppressed.push('.cursor/mcp.json');
+      } else {
+        installCursorMcpConfig(cwd, created, skipped, warnings, err, templates);
       }
     }
   }
@@ -596,6 +608,60 @@ function installGeminiMcpConfig(
   created.push('.gemini/settings.json (tnl added)');
 }
 
+function installCursorMcpConfig(
+  cwd: string,
+  created: string[],
+  skipped: string[],
+  warnings: string[],
+  err: (s: string) => void,
+  templates: InstallTemplates,
+): void {
+  const cursorDir = join(cwd, '.cursor');
+  const mcpPath = join(cursorDir, 'mcp.json');
+
+  if (!existsSync(mcpPath)) {
+    mkdirSync(cursorDir, { recursive: true });
+    const initial: McpConfigShape = {
+      mcpServers: { tnl: templates.mcpServerEntry },
+    };
+    writeFileSync(
+      mcpPath,
+      JSON.stringify(initial, null, 2) + '\n',
+      'utf8',
+    );
+    created.push('.cursor/mcp.json');
+    return;
+  }
+
+  const content = readFileSync(mcpPath, 'utf8');
+  let parsed: McpConfigShape;
+  try {
+    parsed = JSON.parse(content) as McpConfigShape;
+  } catch {
+    const msg =
+      '.cursor/mcp.json is not valid JSON; skipped MCP server registration. Fix the file and re-run `tnl init --agent cursor`.';
+    warnings.push(msg);
+    err(`tnl init: ${msg}\n`);
+    return;
+  }
+
+  const mcpServers = parsed.mcpServers ?? {};
+  if ('tnl' in mcpServers) {
+    skipped.push('.cursor/mcp.json');
+    return;
+  }
+
+  mcpServers.tnl = templates.mcpServerEntry;
+  parsed.mcpServers = mcpServers;
+
+  writeFileSync(
+    mcpPath,
+    JSON.stringify(parsed, null, 2) + '\n',
+    'utf8',
+  );
+  created.push('.cursor/mcp.json (tnl added)');
+}
+
 interface SettingsShape {
   hooks?: {
     PreToolUse?: Array<{
@@ -674,6 +740,11 @@ function detectAgents(cwd: string): AgentName[] {
     // not present
   }
   if (existsSync(join(cwd, 'AGENTS.md'))) agents.push('codex');
+  try {
+    if (statSync(join(cwd, '.cursor')).isDirectory()) agents.push('cursor');
+  } catch {
+    // not present
+  }
   if (existsSync(join(cwd, 'GEMINI.md'))) agents.push('gemini');
   return agents;
 }

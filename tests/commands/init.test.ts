@@ -73,12 +73,13 @@ describe('tnl init', () => {
 
   it('exits 2 on unknown --agent value and makes no filesystem changes', () => {
     const cap = capture();
-    const code = runInit({ cwd, agent: 'cursor', ...cap.opts });
+    const code = runInit({ cwd, agent: 'windsurf', ...cap.opts });
     expect(code).toBe(2);
-    expect(cap.stderr()).toContain("unknown --agent value 'cursor'");
+    expect(cap.stderr()).toContain("unknown --agent value 'windsurf'");
     expect(cap.stderr()).toContain('claude');
     expect(cap.stderr()).toContain('codex');
     expect(cap.stderr()).toContain('gemini');
+    expect(cap.stderr()).toContain('cursor');
     expect(existsSync(join(cwd, 'tnl'))).toBe(false);
   });
 
@@ -1176,6 +1177,171 @@ describe('tnl init', () => {
       expect(hashWithMatch![1]).not.toBe(hashWithoutMatch![1]);
       expect(withSkill).toContain('/tnl-feature');
       expect(cap.stdout()).toContain('Upgraded:');
+    });
+  });
+
+  describe('cursor support', () => {
+    it('detects .cursor/ directory and writes AGENTS.md stanza + .cursor/mcp.json', () => {
+      mkdirSync(join(cwd, '.cursor'));
+      const cap = capture();
+      const code = runInit({ cwd, ...cap.opts });
+      expect(code).toBe(0);
+      const agents = readFileSync(join(cwd, 'AGENTS.md'), 'utf8');
+      expect(agents).toContain('<!-- tnl:workflow-stanza:start hash=');
+      expect(existsSync(join(cwd, '.cursor', 'mcp.json'))).toBe(true);
+    });
+
+    it('--agent cursor writes AGENTS.md stanza and .cursor/mcp.json', () => {
+      const cap = capture();
+      const code = runInit({ cwd, agent: 'cursor', ...cap.opts });
+      expect(code).toBe(0);
+      const agents = readFileSync(join(cwd, 'AGENTS.md'), 'utf8');
+      expect(agents).toContain('<!-- tnl:workflow-stanza:start hash=');
+      const parsed = JSON.parse(
+        readFileSync(join(cwd, '.cursor', 'mcp.json'), 'utf8'),
+      );
+      expect(parsed.mcpServers.tnl).toEqual({
+        command: 'npx',
+        args: ['-y', '-p', 'typed-nl', 'tnl-mcp-server'],
+      });
+    });
+
+    it('--agent cursor without a pre-existing .cursor/ directory still writes .cursor/mcp.json (parent created)', () => {
+      expect(existsSync(join(cwd, '.cursor'))).toBe(false);
+      runInit({ cwd, agent: 'cursor', stdout: () => {}, stderr: () => {} });
+      expect(existsSync(join(cwd, '.cursor'))).toBe(true);
+      expect(existsSync(join(cwd, '.cursor', 'mcp.json'))).toBe(true);
+    });
+
+    it('multiple detection (.cursor/ + AGENTS.md) results in a single AGENTS.md stanza write (idempotent under sentinel)', () => {
+      mkdirSync(join(cwd, '.cursor'));
+      writeFileSync(join(cwd, 'AGENTS.md'), '# project\n', 'utf8');
+      const cap = capture();
+      runInit({ cwd, ...cap.opts });
+      const agents = readFileSync(join(cwd, 'AGENTS.md'), 'utf8');
+      // Exactly one start sentinel — no duplicate stanza writes.
+      const startMatches = agents.match(
+        /<!-- tnl:workflow-stanza:start hash=/g,
+      );
+      expect(startMatches?.length).toBe(1);
+      expect(agents.startsWith('# project\n')).toBe(true);
+    });
+
+    it('multiple detection (.cursor/ + .claude/) writes both CLAUDE.md and AGENTS.md stanzas', () => {
+      mkdirSync(join(cwd, '.cursor'));
+      mkdirSync(join(cwd, '.claude'));
+      const cap = capture();
+      runInit({ cwd, ...cap.opts });
+      expect(
+        readFileSync(join(cwd, 'CLAUDE.md'), 'utf8'),
+      ).toContain('<!-- tnl:workflow-stanza:start hash=');
+      expect(
+        readFileSync(join(cwd, 'AGENTS.md'), 'utf8'),
+      ).toContain('<!-- tnl:workflow-stanza:start hash=');
+    });
+
+    it('--no-mcp suppresses .cursor/mcp.json for cursor targets', () => {
+      const cap = capture();
+      runInit({ cwd, agent: 'cursor', noMcp: true, ...cap.opts });
+      expect(existsSync(join(cwd, '.cursor', 'mcp.json'))).toBe(false);
+      expect(cap.stdout()).toContain('Skipped (opt-out)');
+      expect(cap.stdout()).toContain('.cursor/mcp.json');
+    });
+
+    it('--minimal suppresses .cursor/mcp.json for cursor targets', () => {
+      const cap = capture();
+      runInit({ cwd, agent: 'cursor', minimal: true, ...cap.opts });
+      expect(existsSync(join(cwd, '.cursor', 'mcp.json'))).toBe(false);
+      expect(cap.stdout()).toContain('Skipped (opt-out)');
+      expect(cap.stdout()).toContain('.cursor/mcp.json');
+    });
+
+    it('--local-install --agent cursor writes absolute node <abs> path in .cursor/mcp.json', () => {
+      const fakePkgRoot = mkdtempSync(join(tmpdir(), 'tnl-pkg-'));
+      mkdirSync(join(fakePkgRoot, 'dist', 'mcp'), { recursive: true });
+      runInit({
+        cwd,
+        agent: 'cursor',
+        localInstall: true,
+        pkgRoot: fakePkgRoot,
+        stdout: () => {},
+        stderr: () => {},
+      });
+      const parsed = JSON.parse(
+        readFileSync(join(cwd, '.cursor', 'mcp.json'), 'utf8'),
+      );
+      expect(parsed.mcpServers.tnl.command).toBe('node');
+      expect(parsed.mcpServers.tnl.args[0]).toBe(
+        join(fakePkgRoot, 'dist', 'mcp', 'server.js'),
+      );
+    });
+
+    it('--with-skill --agent cursor (without claude target) is silently ignored', () => {
+      const cap = capture();
+      const code = runInit({
+        cwd,
+        agent: 'cursor',
+        withSkill: true,
+        ...cap.opts,
+      });
+      expect(code).toBe(0);
+      expect(
+        existsSync(join(cwd, '.claude', 'commands', 'tnl-feature.md')),
+      ).toBe(false);
+      expect(cap.stderr()).toBe('');
+    });
+
+    it('preserves existing entries in .cursor/mcp.json when an unrelated MCP server is already registered', () => {
+      mkdirSync(join(cwd, '.cursor'));
+      writeFileSync(
+        join(cwd, '.cursor', 'mcp.json'),
+        JSON.stringify({
+          mcpServers: {
+            other: { command: 'node', args: ['foo.js'] },
+          },
+        }),
+        'utf8',
+      );
+      runInit({ cwd, agent: 'cursor', stdout: () => {}, stderr: () => {} });
+      const parsed = JSON.parse(
+        readFileSync(join(cwd, '.cursor', 'mcp.json'), 'utf8'),
+      );
+      expect(parsed.mcpServers.other).toEqual({
+        command: 'node',
+        args: ['foo.js'],
+      });
+      expect(parsed.mcpServers.tnl).toBeDefined();
+    });
+
+    it('is idempotent when mcpServers.tnl already exists in .cursor/mcp.json', () => {
+      mkdirSync(join(cwd, '.cursor'));
+      writeFileSync(
+        join(cwd, '.cursor', 'mcp.json'),
+        JSON.stringify({
+          mcpServers: {
+            tnl: { command: 'custom-command', args: ['--user-override'] },
+          },
+        }),
+        'utf8',
+      );
+      const before = readFileSync(join(cwd, '.cursor', 'mcp.json'), 'utf8');
+      const cap = capture();
+      runInit({ cwd, agent: 'cursor', ...cap.opts });
+      const after = readFileSync(join(cwd, '.cursor', 'mcp.json'), 'utf8');
+      expect(after).toBe(before);
+      expect(cap.stdout()).toContain('.cursor/mcp.json');
+    });
+
+    it('warns and skips when .cursor/mcp.json is malformed JSON', () => {
+      mkdirSync(join(cwd, '.cursor'));
+      writeFileSync(join(cwd, '.cursor', 'mcp.json'), 'not valid json', 'utf8');
+      const cap = capture();
+      runInit({ cwd, agent: 'cursor', ...cap.opts });
+      expect(
+        readFileSync(join(cwd, '.cursor', 'mcp.json'), 'utf8'),
+      ).toBe('not valid json');
+      expect(cap.stdout()).toContain('Warnings');
+      expect(cap.stderr()).toContain('.cursor/mcp.json');
     });
   });
 });
